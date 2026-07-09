@@ -1,0 +1,2 @@
+- Use OpenSpec skills to guide the work process
+- Provide automated tests with comprehensive, or nearly comprehensive, coverage of every functions
