@@ -25,12 +25,12 @@ None — `openspec/specs/` is empty; this is the first change.
 
 ## Non-goals
 
-- The `codex`, `gemini`, and `ollama` adapters (each is its own change; the codex adapter is the suite's first real consumer).
+- The `codex`, `claude`, `gemini`, and `ollama` adapters (each is its own change; the codex adapter is the suite's first real consumer).
 - The CLI and MCP front-ends.
 - Target assembly (file concatenation, `git diff`) — the interface takes material already assembled; how it gets assembled is a front-end concern.
 - Triage, clustering, or ranking of findings — open design question, deliberately untouched here.
 - Model selection and auth fallback — provider-specific behavior, specified with each adapter.
-- Same-family author/reviewer enforcement — this change makes it *detectable* by pinning provenance into the result; enforcement is a later decision.
+- Same-model author/reviewer enforcement — this change makes it *detectable* by pinning provenance into the result; enforcement is a later decision.
 - Release wiring (`bootstrap-release` runs separately).
 
 ## Impact

@@ -4,7 +4,7 @@
 
 Greenfield repo, no code yet.
 This change lays the seam everything else builds on: the `Provider` interface, its request/result types, and the conformance suite that makes the cold-reviewer guarantee a tested property rather than a stated intention.
-The interface must span two transports from day one — `codex` and `gemini` shell out, `ollama` speaks HTTP — without leaking either.
+The interface must span two transports from day one — `codex`, `claude`, and `gemini` shell out, `ollama` speaks HTTP — without leaking either.
 
 ## Goals / Non-Goals
 
@@ -112,4 +112,4 @@ What this change cannot do is *force* future adapters to run their reviewers col
 ## Open Questions
 
 None new.
-Two project-level open questions (finding envelope shape; same-family author/reviewer enforcement) are deliberately not answered here — this design only pins the provenance floor both depend on.
+Two project-level open questions (finding envelope shape; same-model author/reviewer enforcement) are deliberately not answered here — this design only pins the provenance floor both depend on.

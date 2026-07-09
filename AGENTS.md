@@ -1,4 +1,5 @@
 Adversarial review: send a document or a diff to a model that did not write it, and get findings back.
+The tool has no home model — it is callable from any harness to any provider, and Claude is a provider like any other.
 
 Purpose, design guarantees, and constraints live in `openspec/config.yaml` under `context:` — read it first.
 Specs in `openspec/specs/` are the current truth; proposals live in `openspec/changes/`.
@@ -35,7 +36,7 @@ Cover behavior, and name what you cannot cover.
 - [ ] Codex adapter.
 - [ ] CLI front-end; retire `dotfiles/claude/bin/second-opinion.sh`.
 - [ ] MCP front-end.
-- [ ] `gemini` and `ollama` adapters.
+- [ ] `claude`, `gemini`, and `ollama` adapters.
 
 ## Release
 

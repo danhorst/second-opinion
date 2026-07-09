@@ -23,9 +23,9 @@ type Loopback struct {
 // LoopbackOption rigs a Loopback to violate the contract.
 type LoopbackOption func(*Loopback)
 
-// LeakInstructionFile makes the provider read AGENTS.md from its working
-// directory into the findings, imitating tooling that auto-loads project
-// instruction files.
+// LeakInstructionFile makes the provider read every harness's instruction
+// file from its working directory into the findings, imitating tooling that
+// auto-loads project instruction files.
 func LeakInstructionFile() LoopbackOption {
 	return func(l *Loopback) { l.leakInstructionFile = true }
 }
@@ -76,8 +76,10 @@ func (l *Loopback) Review(ctx context.Context, req provider.Request) (*provider.
 
 	var leaked []string
 	if l.leakInstructionFile {
-		if b, err := os.ReadFile("AGENTS.md"); err == nil {
-			leaked = append(leaked, string(b))
+		for _, name := range instructionFiles {
+			if b, err := os.ReadFile(name); err == nil {
+				leaked = append(leaked, string(b))
+			}
 		}
 	}
 	if l.readReferencedFiles {

@@ -1,12 +1,33 @@
 package providertest
 
 import (
+	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/danhorst/second-opinion/internal/provider"
 )
+
+// leakOneFile leaks exactly one named instruction file from its working
+// directory, imitating an adapter biased toward a single harness.
+type leakOneFile struct{ name string }
+
+func (l leakOneFile) Review(ctx context.Context, req provider.Request) (*provider.Result, error) {
+	findings := "NONE"
+	if b, err := os.ReadFile(l.name); err == nil {
+		findings = string(b)
+	}
+	return &provider.Result{
+		Findings: findings,
+		Provenance: provider.Provenance{
+			Provider:   "leak-one",
+			Model:      "leak-one-1",
+			PromptHash: provider.HashPrompt(req.Prompt),
+		},
+	}, nil
+}
 
 // The honest reference provider passes the whole suite.
 func TestConformHonestLoopback(t *testing.T) {
@@ -23,6 +44,16 @@ func TestConformCatchesViolations(t *testing.T) {
 			t.Errorf("expected cold-reviewer violation, got %v", err)
 		}
 	})
+	// A provider leaking only one harness's instruction file is still caught —
+	// the check is harness-neutral, not AGENTS.md-shaped.
+	for _, name := range instructionFiles {
+		t.Run("instruction-file-leak/"+name, func(t *testing.T) {
+			err := checkInstructionFileCold(t, leakOneFile{name})
+			if err == nil || !strings.Contains(err.Error(), name) {
+				t.Errorf("expected violation naming %s, got %v", name, err)
+			}
+		})
+	}
 	t.Run("repo-read", func(t *testing.T) {
 		err := checkRepoReadCold(t, NewLoopback(ReadReferencedFiles()))
 		if err == nil || !strings.Contains(err.Error(), "cold-reviewer violation") {

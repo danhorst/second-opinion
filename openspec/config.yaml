@@ -4,7 +4,13 @@ context: |
   ## Purpose
 
   second-opinion sends a document or a diff to a model that did not write it, and returns adversarial findings.
-  The premise is that a model cannot reliably review its own work, so the reviewer must be a different model.
+  The premise is model-level: a model cannot reliably review its own work, so the reviewer must be a
+  different model than the author. A different model of the same family qualifies — Claude reviewing
+  Claude-written work with a different Claude model is a valid second opinion.
+
+  The tool is unbiased: it has no home model. It is callable from any common harness (the CLI, or MCP
+  from Claude Code, Codex, Gemini CLI, or anything else that speaks MCP) to any common provider —
+  Anthropic included.
 
   A CLI and a local MCP gateway are two thin front-ends over one review engine.
   This supersedes `dotfiles/claude/bin/second-opinion.sh`.
@@ -17,8 +23,8 @@ context: |
     slurps context on its own violates the guarantee. The material is auditable: it is always
     possible to see exactly what the reviewer received. This is a property of the provider
     layer, not of any one adapter; every adapter proves it against a shared conformance suite.
-  - Providers are interchangeable. `codex` and `gemini` shell out; `ollama` speaks HTTP. Transport
-    must not leak into the interface.
+  - Providers are interchangeable. `codex`, `claude`, and `gemini` shell out; `ollama` speaks HTTP.
+    Transport must not leak into the interface.
   - The reviewer finds; it does not rank. Severity is the reviewer's guess and ours to distrust.
     Novelty is the axis it cannot judge, because it cannot see what the author already knew.
 
@@ -47,14 +53,15 @@ context: |
   ## Open questions
 
   - Where triage lives. The reviewer emits many findings; clustering, deduping, and ranking by
-    severity x novelty currently happen in a Claude skill. Under MCP the caller is frequently the
-    same model that wrote the material, so "the caller triages" means the author grades its own
-    homework — the exact failure this tool exists to prevent.
-  - Whether the tool enforces its own premise. "A model that did not write it" is currently
-    guaranteed only by the accident that no configured provider matches the caller's model.
-    Should the engine accept an author declaration and refuse or warn on a same-family review?
-    At minimum, findings must carry reviewer provenance (provider, model, prompt version) so
-    a violation is detectable after the fact.
+    severity x novelty currently happen in the calling agent's harness. Under MCP the caller is
+    frequently the same model that wrote the material, so "the caller triages" means the author
+    grades its own homework — the exact failure this tool exists to prevent.
+  - Whether the tool enforces its own premise. Nothing currently prevents a review by the same
+    model that wrote the material. Should the engine accept an author declaration and refuse or
+    warn on a same-model review? Enforcement compares model identities, never vendors — a
+    different model of the same family is a valid reviewer. At minimum, findings must carry
+    reviewer provenance (provider, model, prompt version) so a violation is detectable after
+    the fact.
   - What shape findings take at the engine boundary — raw reviewer text or a structured
     envelope. The MCP front-end and the triage question both hang on this. Whatever the
     shape, provenance must survive it.
@@ -62,9 +69,10 @@ context: |
   ## External dependencies
 
   - `codex` (OpenAI) — subprocess. Auth is ChatGPT-account or API key, and the two expose different model sets.
+  - `claude` (Anthropic) — subprocess, `claude -p` non-interactive mode.
   - `gemini` — subprocess. `ollama` — local HTTP endpoint.
-  - Provider locality is a selection axis: material sent to `codex` or `gemini` leaves the
-    machine; `ollama` exists partly so material that must stay local can still get a second
+  - Provider locality is a selection axis: material sent to `codex`, `claude`, or `gemini` leaves
+    the machine; `ollama` exists partly so material that must stay local can still get a second
     opinion.
 
 rules:
