@@ -28,12 +28,13 @@ Cover behavior, and name what you cannot cover.
 
 - `internal/provider` — the `Provider` contract: `Request` (prompt + material by value), `Result` (findings + provenance), sentinel errors, `HashPrompt`.
 - `internal/provider/providertest` — the shared conformance suite (`Conform`) and the `Loopback` reference provider that validates it.
+- `internal/provider/codex` — the codex adapter: cold invocation by construction, JSONL provenance extraction, ChatGPT-auth model fallback.
 
 ## Milestones
 
 - [ ] `bootstrap-release` — `scripts/release`, `.github/workflows/`, `CHANGELOG.md`, tap formula.
 - [x] Provider interface and conformance suite.
-- [ ] Codex adapter.
+- [ ] Codex adapter — implemented; blocked on real-binary conformance (codex usage limit resets 2026-07-19).
 - [ ] CLI front-end; retire `dotfiles/claude/bin/second-opinion.sh`.
 - [ ] MCP front-end.
 - [ ] `claude`, `gemini`, and `ollama` adapters.
