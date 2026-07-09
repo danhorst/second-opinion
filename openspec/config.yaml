@@ -1,20 +1,74 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  ## Purpose
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  second-opinion sends a document or a diff to a model that did not write it, and returns adversarial findings.
+  The premise is that a model cannot reliably review its own work, so the reviewer must be a different model.
+
+  A CLI and a local MCP gateway are two thin front-ends over one review engine.
+  This supersedes `dotfiles/claude/bin/second-opinion.sh`.
+
+  ## Design guarantees
+
+  - The reviewer runs cold: nothing implicit. Everything the reviewer sees was explicitly
+    assembled into the material — no auto-loaded project instruction files, no repo access,
+    no session history. An author may deliberately include supporting files; a provider that
+    slurps context on its own violates the guarantee. The material is auditable: it is always
+    possible to see exactly what the reviewer received. This is a property of the provider
+    layer, not of any one adapter; every adapter proves it against a shared conformance suite.
+  - Providers are interchangeable. `codex` and `gemini` shell out; `ollama` speaks HTTP. Transport
+    must not leak into the interface.
+  - The reviewer finds; it does not rank. Severity is the reviewer's guess and ours to distrust.
+    Novelty is the axis it cannot judge, because it cannot see what the author already knew.
+
+  ## Critical behavior
+
+  - A target is either a list of file paths, concatenated, or `git diff <base>` where base defaults to HEAD.
+  - Provider selection and model selection are separate concerns. Forcing a model is a foot-gun:
+    Codex silently rejects some models under ChatGPT-account auth. The tool detects that one failure
+    and falls back to the provider default.
+  - Failure is loud. Exit status distinguishes "the reviewer ran and found nothing" from
+    "the reviewer did not run."
+
+  ## Tech stack
+
+  Go, single module — `cmd/` front-ends over an `internal/` engine.
+  MCP via `github.com/modelcontextprotocol/go-sdk` (1.x, stable).
+  `make test`, `gofmt`. Shipped through `homebrew-tap`, github-tarball flavor.
+
+  ## Project conventions
+
+  - Cover behavior boundaries. Do not mock the provider boundary to reach a coverage number —
+    a mock of `codex` asserts what we believe `codex` does, which is the thing actually in doubt.
+  - Adapters are exercised against the real binary or endpoint behind a build tag.
+  - Anything genuinely untestable is named in AGENTS.md rather than faked.
+
+  ## Open questions
+
+  - Where triage lives. The reviewer emits many findings; clustering, deduping, and ranking by
+    severity x novelty currently happen in a Claude skill. Under MCP the caller is frequently the
+    same model that wrote the material, so "the caller triages" means the author grades its own
+    homework — the exact failure this tool exists to prevent.
+  - Whether the tool enforces its own premise. "A model that did not write it" is currently
+    guaranteed only by the accident that no configured provider matches the caller's model.
+    Should the engine accept an author declaration and refuse or warn on a same-family review?
+    At minimum, findings must carry reviewer provenance (provider, model, prompt version) so
+    a violation is detectable after the fact.
+  - What shape findings take at the engine boundary — raw reviewer text or a structured
+    envelope. The MCP front-end and the triage question both hang on this. Whatever the
+    shape, provenance must survive it.
+
+  ## External dependencies
+
+  - `codex` (OpenAI) — subprocess. Auth is ChatGPT-account or API key, and the two expose different model sets.
+  - `gemini` — subprocess. `ollama` — local HTTP endpoint.
+  - Provider locality is a selection axis: material sent to `codex` or `gemini` leaves the
+    machine; `ollama` exists partly so material that must stay local can still get a second
+    opinion.
+
+rules:
+  proposal:
+    - Include a "Non-goals" section.
+  design:
+    - State how the change preserves the cold-reviewer guarantee, or argue why it cannot.
