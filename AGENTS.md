@@ -23,10 +23,15 @@ Cover behavior, and name what you cannot cover.
 - Do not mock the provider boundary to reach a coverage number.
 - Anything genuinely untestable is named in this file. An untested path nobody wrote down is a bug waiting for a user to find it.
 
-## Milestones (current phase: pre-code)
+## Architecture
+
+- `internal/provider` — the `Provider` contract: `Request` (prompt + material by value), `Result` (findings + provenance), sentinel errors, `HashPrompt`.
+- `internal/provider/providertest` — the shared conformance suite (`Conform`) and the `Loopback` reference provider that validates it.
+
+## Milestones
 
 - [ ] `bootstrap-release` — `scripts/release`, `.github/workflows/`, `CHANGELOG.md`, tap formula.
-- [ ] Provider interface and conformance suite.
+- [x] Provider interface and conformance suite.
 - [ ] Codex adapter.
 - [ ] CLI front-end; retire `dotfiles/claude/bin/second-opinion.sh`.
 - [ ] MCP front-end.
