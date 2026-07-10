@@ -9,7 +9,7 @@ A skill shipped inside the binary, installable per harness, makes the calling-ag
 
 - Canonical skill at `skills/second-opinion/SKILL.md`: invocation, exit-code interpretation, provenance reading, reviewer-≠-author selection, and the five-step triage discipline — provider-neutral throughout.
 - The skill is embedded in the binary (`go:embed`) so `brew install` carries it.
-- New subcommand: `second-opinion skill install [--harness claude|codex|all] [--stdout]` — Claude Code gets the SKILL.md verbatim, Codex gets a body-only custom prompt, and Antigravity is reached through its Claude-format import (`agy plugin import claude`), run automatically when `agy` is on PATH.
+- New subcommand: `second-opinion skill install [--harness claude|codex|all] [--stdout]` — Claude Code gets the SKILL.md verbatim, Codex gets a body-only custom prompt, and Antigravity gets a minimal Claude-format plugin (written under `~/.second-opinion/antigravity-plugin`, installed via `agy plugin install <dir>` when `agy` is on PATH).
 - Installs are idempotent overwrites of files the tool owns, stamped as generated.
 - Roster correction: Google has deprecated the Gemini CLI in favor of the Antigravity toolchain, so the planned `gemini` adapter is removed from the milestones and project context — the antigravity adapter already carries Google.
 

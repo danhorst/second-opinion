@@ -9,7 +9,7 @@ context: |
   Claude-written work with a different Claude model is a valid second opinion.
 
   The tool is unbiased: it has no home model. It is callable from any common harness (the CLI, or MCP
-  from Claude Code, Codex, Gemini CLI, or anything else that speaks MCP) to any common provider —
+  from Claude Code, Codex, Antigravity, or anything else that speaks MCP) to any common provider —
   Anthropic included.
 
   A CLI and a local MCP gateway are two thin front-ends over one review engine.
@@ -23,8 +23,8 @@ context: |
     slurps context on its own violates the guarantee. The material is auditable: it is always
     possible to see exactly what the reviewer received. This is a property of the provider
     layer, not of any one adapter; every adapter proves it against a shared conformance suite.
-  - Providers are interchangeable. `codex`, `claude`, and `gemini` shell out; `ollama` speaks HTTP.
-    Transport must not leak into the interface.
+  - Providers are interchangeable. `codex`, `claude`, and `antigravity` shell out; `ollama` speaks
+    HTTP. Transport must not leak into the interface.
   - The reviewer finds; it does not rank. Severity is the reviewer's guess and ours to distrust.
     Novelty is the axis it cannot judge, because it cannot see what the author already knew.
 
@@ -73,10 +73,12 @@ context: |
     no stdin with a prompt argument; truthful model provenance via the JSON envelope's modelUsage.
   - `antigravity` (Google) — subprocess, `agy --print`; itself a multi-model harness (Gemini, Claude,
     GPT-OSS), no stdin in print mode, no structured output naming the model that ran.
-  - `gemini` — subprocess. `ollama` — local HTTP endpoint.
-  - Provider locality is a selection axis: material sent to `codex`, `claude`, `antigravity`, or
-    `gemini` leaves the machine; `ollama` exists partly so material that must stay local can still
-    get a second opinion.
+  - `ollama` — local HTTP endpoint.
+  - Google deprecated the Gemini CLI in favor of the Antigravity toolchain (2026-07); `antigravity`
+    is Google's representation in the roster.
+  - Provider locality is a selection axis: material sent to `codex`, `claude`, or `antigravity`
+    leaves the machine; `ollama` exists partly so material that must stay local can still get a
+    second opinion.
 
 rules:
   proposal:

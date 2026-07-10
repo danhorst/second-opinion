@@ -32,7 +32,8 @@ Cover behavior, and name what you cannot cover.
 - `internal/provider/antigravity` — the antigravity (`agy`) adapter: cwd isolation, prompt-embedded material, documented provenance degradation for unforced reviews.
 - `internal/provider/claude` — the claude adapter: tools and setting sources disabled (repo reads impossible, user memory suppressed), truthful model provenance from the JSON envelope.
 - `internal/review` — engine pieces shared by front-ends: the baked adversarial prompt (transport-neutral), target assembly (`FromFiles`, `FromDiff`), the provider registry.
-- `cmd/second-opinion` — the CLI: findings on stdout, provenance on stderr; exit 0 = review completed, 1 = reviewer did not run, 2 = usage.
+- `cmd/second-opinion` — the CLI: findings on stdout, provenance on stderr; exit 0 = review completed, 1 = reviewer did not run, 2 = usage. `skill install` writes the calling-agent skill per harness.
+- `skills/second-opinion/SKILL.md` — the canonical calling-agent skill (triage discipline), embedded in the binary.
 
 ## Milestones
 
@@ -43,7 +44,8 @@ Cover behavior, and name what you cannot cover.
 - [ ] MCP front-end.
 - [x] Antigravity (`agy`) adapter — full real-binary conformance passed 2026-07-10.
 - [x] Claude adapter — full real-binary conformance passed 2026-07-10.
-- [ ] `gemini` and `ollama` adapters.
+- [x] Calling-agent skill, shipped in the binary (`skill install`).
+- [ ] `ollama` adapter (the planned `gemini` adapter was dropped: Google deprecated the Gemini CLI in favor of Antigravity, which the roster already carries).
 
 ## Release
 

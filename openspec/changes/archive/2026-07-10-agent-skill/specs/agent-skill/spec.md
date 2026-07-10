@@ -20,12 +20,12 @@ The content MUST be provider-neutral: no provider is presented as the default or
 
 ### Requirement: Per-harness installation
 `second-opinion skill install` SHALL write the skill natively for Claude Code (`~/.claude/skills/second-opinion/SKILL.md`, verbatim) and Codex (`~/.codex/prompts/second-opinion.md`, body only), defaulting to all targets, selectable via `--harness`.
-For Antigravity, which imports Claude-format plugins, the installer SHALL run `agy plugin import claude` after the Claude install when `agy` is on PATH, and print the command as a next step when it is not.
+For Antigravity, which consumes Claude-format plugins (not bare skills), the installer SHALL write a minimal plugin (`plugin.json` plus the skill) under `~/.second-opinion/antigravity-plugin` and run `agy plugin install <dir>` when `agy` is on PATH, printing the command as a next step when it is not.
 `--stdout` SHALL print the canonical skill instead of installing, for any other harness.
 
 #### Scenario: Default install reaches all harnesses
 - **WHEN** `skill install` runs with no flags
-- **THEN** the Claude and Codex files are written, and the Antigravity import runs or is printed as a next step
+- **THEN** the Claude and Codex files are written, the Antigravity plugin directory is written, and the plugin install runs or is printed as a next step
 
 #### Scenario: Stdout escape hatch
 - **WHEN** `skill install --stdout` runs

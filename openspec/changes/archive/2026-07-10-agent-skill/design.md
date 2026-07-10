@@ -22,7 +22,7 @@ The repo file is the source of truth by construction — the embed reads it dire
 
 - Claude: verbatim — YAML frontmatter (name, description) is Claude's native skill format.
 - Codex: frontmatter stripped — codex custom prompts are plain markdown, filename is the command name.
-- Antigravity: no third rendering. `agy plugin import claude` consumes the Claude install; the installer runs it when `agy` is on PATH and prints it as a next step otherwise. Import failure is a warning, not an install failure — the Claude and Codex installs stand on their own.
+- Antigravity: a minimal Claude-format *plugin*, not a third rendering of the skill. Learned empirically during implementation: `agy plugin import claude` reports "No claude extensions found" against bare `~/.claude/skills` — agy consumes plugins (`plugin.json` + `skills/`), and `agy plugin install <local dir>` accepts one (verified: validate and install both process the skill). The installer writes `~/.second-opinion/antigravity-plugin/{plugin.json, skills/second-opinion/SKILL.md}` and runs the install when `agy` is on PATH; failure is a warning, and without `agy` the directory is still written so the printed next-step command works as-is.
 Alternative considered: a gemini TOML target (`~/.gemini/commands`). Rejected — the CLI it served is deprecated.
 
 ### D3 — Installer edges injected
@@ -47,7 +47,7 @@ The skill's text actively supports the guarantee's premise by teaching callers t
 
 ## Risks / Trade-offs
 
-- [`agy plugin import claude` semantics may not cover plain skills] → Verified manually in this change; if import turns out to skip skills, the printed next-step instruction and `--stdout` still cover Antigravity, and the design note gets amended with what was learned.
+- [`agy plugin import claude` semantics may not cover plain skills] → **Fired, exactly as anticipated**: import skips bare skills. Resolved via the plugin-dir + `agy plugin install` path above; this note kept as the record.
 - [Codex prompt format may evolve] → The rendering is one function; the file is stamped and regenerable.
 - [Skill drift from CLI behavior] → The skill ships in the same repo and binary as the CLI it describes; changing flags without updating the skill is visible in one diff.
 

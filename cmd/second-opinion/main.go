@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -25,6 +26,9 @@ const usage = `usage: second-opinion [flags] PATH...
   --provider P   reviewer provider; defaults to $SECOND_OPINION_PROVIDER
   --model M      force a model (provider semantics apply)
   --prompt-file  replace the baked review prompt with a file's contents
+
+subcommands:
+  skill install  install the calling-agent skill for claude/codex harnesses
 
 exit codes: 0 review completed; 1 reviewer did not run; 2 usage error
 `
@@ -157,5 +161,22 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	os.Exit(run(ctx, os.Args[1:], os.Getenv, os.Stdout, os.Stderr, review.NewProvider))
+	args := os.Args[1:]
+	if len(args) > 0 && args[0] == "skill" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "second-opinion: %v\n", err)
+			os.Exit(1)
+		}
+		deps := skillDeps{
+			home:     home,
+			lookPath: exec.LookPath,
+			runInstall: func(pluginDir string) (string, error) {
+				out, err := exec.CommandContext(ctx, "agy", "plugin", "install", pluginDir).CombinedOutput()
+				return string(out), err
+			},
+		}
+		os.Exit(runSkill(args[1:], deps, os.Stdout, os.Stderr))
+	}
+	os.Exit(run(ctx, args, os.Getenv, os.Stdout, os.Stderr, review.NewProvider))
 }
