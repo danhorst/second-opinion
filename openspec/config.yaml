@@ -69,7 +69,8 @@ context: |
   ## External dependencies
 
   - `codex` (OpenAI) — subprocess. Auth is ChatGPT-account or API key, and the two expose different model sets.
-  - `claude` (Anthropic) — subprocess, `claude -p` non-interactive mode.
+  - `claude` (Anthropic) — subprocess, `claude -p --output-format json --tools "" --setting-sources ""`;
+    no stdin with a prompt argument; truthful model provenance via the JSON envelope's modelUsage.
   - `antigravity` (Google) — subprocess, `agy --print`; itself a multi-model harness (Gemini, Claude,
     GPT-OSS), no stdin in print mode, no structured output naming the model that ran.
   - `gemini` — subprocess. `ollama` — local HTTP endpoint.
