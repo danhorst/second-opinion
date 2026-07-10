@@ -31,13 +31,15 @@ Cover behavior, and name what you cannot cover.
 - `internal/provider/codex` — the codex adapter: cold invocation by construction, JSONL provenance extraction, ChatGPT-auth model fallback.
 - `internal/provider/antigravity` — the antigravity (`agy`) adapter: cwd isolation, prompt-embedded material, documented provenance degradation for unforced reviews.
 - `internal/provider/claude` — the claude adapter: tools and setting sources disabled (repo reads impossible, user memory suppressed), truthful model provenance from the JSON envelope.
+- `internal/review` — engine pieces shared by front-ends: the baked adversarial prompt (transport-neutral), target assembly (`FromFiles`, `FromDiff`), the provider registry.
+- `cmd/second-opinion` — the CLI: findings on stdout, provenance on stderr; exit 0 = review completed, 1 = reviewer did not run, 2 = usage.
 
 ## Milestones
 
 - [ ] `bootstrap-release` — `scripts/release`, `.github/workflows/`, `CHANGELOG.md`, tap formula.
 - [x] Provider interface and conformance suite.
 - [ ] Codex adapter — implemented; blocked on real-binary conformance (codex usage limit resets 2026-07-19).
-- [ ] CLI front-end; retire `dotfiles/claude/bin/second-opinion.sh`.
+- [ ] CLI front-end — implemented; retiring `dotfiles/claude/bin/second-opinion.sh` is a manual follow-up in the dotfiles repo once the binary is installed.
 - [ ] MCP front-end.
 - [x] Antigravity (`agy`) adapter — full real-binary conformance passed 2026-07-10.
 - [x] Claude adapter — full real-binary conformance passed 2026-07-10.
