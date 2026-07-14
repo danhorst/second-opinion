@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+CHANGELOG="$REPO_ROOT/CHANGELOG.md"
+REPO_URL="https://github.com/danhorst/second-opinion"
+# Optional: uncomment if this repo hardcodes its version in source.
+# VERSION_FILE="$REPO_ROOT/__VERSION_FILE_PATH__"
+
+usage() {
+  echo "Usage: $(basename "$0") vX.Y.Z"
+  exit 1
+}
+
+[ "${1:-}" = "" ] && usage
+VERSION="$1"
+[[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Error: version must be vX.Y.Z"; exit 1; }
+
+cd "$REPO_ROOT"
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+
+# Ensure working tree is clean (CHANGELOG aside)
+# If also bumping a version file, extend to: '^.. (CHANGELOG\.md|__VERSION_FILE_PATH__)'
+DIRTY=$(git status --porcelain | grep -vE '^.. CHANGELOG\.md' || true)
+[ -n "$DIRTY" ] && { echo "Error: uncommitted changes present"; git status --short; exit 1; }
+
+# Ensure [Unreleased] has content to promote
+grep -q '^\#\# \[Unreleased\]' "$CHANGELOG" || { echo "Error: no [Unreleased] section found in CHANGELOG.md"; exit 1; }
+UNRELEASED_CONTENT=$(awk '/^## \[Unreleased\]/{found=1; next} found && /^## \[/{exit} found{print}' "$CHANGELOG")
+[ -z "$(echo "$UNRELEASED_CONTENT" | tr -d '[:space:]')" ] && { echo "Error: [Unreleased] section is empty — add changelog entries first"; exit 1; }
+
+TODAY="$(date +%Y-%m-%d)"
+BARE="${VERSION#v}"
+
+echo "Releasing $VERSION ($TODAY)..."
+
+# Optional: bump the version constant in source.
+# sd '__VERSION_PATTERN__' '__VERSION_REPLACEMENT__' "$VERSION_FILE"
+
+# Promote [Unreleased] → [VERSION] in CHANGELOG
+sd '## \[Unreleased\]' "## [Unreleased]\n\n## [$BARE] - $TODAY" "$CHANGELOG"
+
+# Update comparison links
+PREV_TAG=$(git tag --sort=-version:refname | grep '^v' | head -1 || true)
+if [ -n "$PREV_TAG" ]; then
+  sd "\[Unreleased\]: ${REPO_URL}/compare/.*\.\.\.HEAD" \
+     "[Unreleased]: ${REPO_URL}/compare/${VERSION}...HEAD\n[$BARE]: ${REPO_URL}/compare/${PREV_TAG}...${VERSION}" \
+     "$CHANGELOG"
+else
+  sd "\[Unreleased\]: ${REPO_URL}/compare/.*\.\.\.HEAD" \
+     "[Unreleased]: ${REPO_URL}/compare/${VERSION}...HEAD" \
+     "$CHANGELOG"
+fi
+
+# Commit and tag
+git add CHANGELOG.md # __VERSION_FILE_PATH__, if bumped above
+git commit -m "Release $VERSION"
+git tag -a "$VERSION" -m "$VERSION"
+
+# Push — CI creates the release and updates the tap formula
+git push origin "$BRANCH"
+git push origin "$VERSION"
+
+echo "Tag pushed. GitHub Actions will create the release and update the tap formula."
