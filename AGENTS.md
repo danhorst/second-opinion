@@ -37,7 +37,7 @@ Cover behavior, and name what you cannot cover.
 
 ## Milestones
 
-- [ ] `bootstrap-release` — `scripts/release`, `.github/workflows/`, `CHANGELOG.md`, tap formula.
+- [x] `bootstrap-release` — `scripts/release`, `.github/workflows/`, `CHANGELOG.md`, tap formula; v0.1.0 released 2026-07-14.
 - [x] Provider interface and conformance suite.
 - [ ] Codex adapter — implemented; blocked on real-binary conformance (codex usage limit resets 2026-07-19).
 - [ ] CLI front-end — implemented; retiring `dotfiles/claude/bin/second-opinion.sh` is a manual follow-up in the dotfiles repo once the binary is installed.
