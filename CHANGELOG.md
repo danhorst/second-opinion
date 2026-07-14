@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-14
+
 ### Added
 
 - `second-opinion` CLI: review files or a git diff (`--diff [BASE]`, default `HEAD`), select a provider (`--provider`, or `$SECOND_OPINION_PROVIDER`), force a model (`--model`), override the baked prompt (`--prompt-file`). Findings on stdout, one-line provenance on stderr.
