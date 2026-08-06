@@ -21,6 +21,9 @@ Cover behavior, and name what you cannot cover.
 
 - Unit-test the pure logic: argument parsing, target assembly, prompt selection, the auth-fallback predicate.
 - Each provider adapter passes a shared conformance suite, run against the real binary or endpoint behind a build tag.
+- A passing cold result is meaningful only alongside a passing positive control.
+  Every cold check is a negative assertion, so a reviewer that received no material satisfies all of them.
+  The suite runs the control first and reports the cold checks as inconclusive beneath a failed one.
 - Do not mock the provider boundary to reach a coverage number.
 - Anything genuinely untestable is named in this file. An untested path nobody wrote down is a bug waiting for a user to find it.
 
@@ -38,18 +41,18 @@ Cover behavior, and name what you cannot cover.
 ## Milestones
 
 - [x] `bootstrap-release` — `scripts/release`, `.github/workflows/`, `CHANGELOG.md`, tap formula; v0.1.0 released 2026-07-14.
-- [ ] Provider interface and conformance suite — implemented, but the suite's cold checks pass vacuously against a provider that sends no material; `conformance-positive-control` closes that.
-- [ ] Codex adapter — implemented; real reviews run (usage limit reset 2026-07-19 has passed), but the suite has not been re-run since, and model provenance is broken (see Known defects).
+- [x] Provider interface and conformance suite — the positive control landed 2026-08-06, so the cold checks no longer pass vacuously against a provider that sends no material.
+- [ ] Codex adapter — passes full real-binary conformance including the positive control, 2026-08-06; model provenance is still broken (see Known defects).
 - [x] CLI front-end — implemented; `dotfiles/claude/bin/second-opinion.sh` has been retired.
 - [ ] MCP front-end.
-- [ ] Antigravity (`agy`) adapter — the 2026-07-10 conformance pass is void: the adapter has never sent material to the reviewer (see Known defects). Blocked on `conformance-positive-control`.
-- [ ] Claude adapter — the 2026-07-10 conformance pass was against a suite that could not detect a provider sending no material. A real review on 2026-08-06 demonstrably received its material, so the defect is not shared; pending re-verification under the positive control.
+- [x] Antigravity (`agy`) adapter — the 2026-07-10 pass was void, against a suite that could not detect the adapter sending no material; the invocation is fixed and it passes under the positive control, 2026-08-06.
+- [x] Claude adapter — the 2026-07-10 pass was against that same suite; re-verified under the positive control, 2026-08-06.
 - [x] Calling-agent skill, shipped in the binary (`skill install`).
 - [ ] `ollama` adapter (the planned `gemini` adapter was dropped: Google deprecated the Gemini CLI in favor of Antigravity, which the roster already carries).
 
 ## Known defects
 
-Both found 2026-08-06, by dogfooding a review of `openspec/changes/findings-envelope/`.
+Found 2026-08-06, by dogfooding a review of `openspec/changes/findings-envelope/`.
 
 **Codex provenance reports `codex-default` on a successful review — unowned.**
 The review ran and returned real findings, but `findModel` (`internal/provider/codex/events.go`) found no string-valued `model` key anywhere in the JSONL event stream, so provenance fell back to the marker.
@@ -57,11 +60,7 @@ Reproduce with `second-opinion --provider codex <file>` and read stderr.
 Most likely codex changed its `--json` output shape, or `--ephemeral` suppresses the `session_configured` event; a real `findModel` bug is the third possibility.
 This matters because provenance is the only mechanism that makes a reviewer-equals-author violation detectable after the fact — a provider that cannot name the model that ran defeats it.
 Named as an explicit non-goal in `openspec/changes/conformance-positive-control/`, so no change owns it.
-
-**Antigravity sends no material — owned by `conformance-positive-control`.**
-`agy --print` takes the prompt as its flag value, and `buildInvocation` emits `agy --print --sandbox … <instruction>`, so `--print` consumes `--sandbox` and the material is dropped.
-The reviewer answers the string `--sandbox` and the tool exits 0.
-Every cold-guarantee check passes vacuously, because a reviewer that receives nothing cannot see anything it should not.
+`make test-integration` fails on `TestCodexProvenance` for this reason alone; conformance passes for all three adapters.
 
 ## Release
 

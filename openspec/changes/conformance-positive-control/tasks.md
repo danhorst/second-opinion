@@ -20,17 +20,17 @@
 
 ## 4. Re-verify the other adapters
 
-- [ ] 4.1 Run the positive control against the real `codex` binary under the integration tag.
-- [ ] 4.2 Run the positive control against the real `claude` binary under the integration tag.
-- [ ] 4.3 Record the results; any adapter that fails gets its own fix, scoped separately from this change.
+- [x] 4.1 Run the positive control against the real `codex` binary under the integration tag.
+- [x] 4.2 Run the positive control against the real `claude` binary under the integration tag.
+- [x] 4.3 Record the results; any adapter that fails gets its own fix, scoped separately from this change.
 
 ## 5. Documentation
 
-- [ ] 5.1 Correct the `AGENTS.md` milestone claiming antigravity passed full real-binary conformance on 2026-07-10 — it passed a suite that could not detect this failure.
-- [ ] 5.2 Note in `AGENTS.md` that a passing cold result is only meaningful alongside a passing positive control.
+- [x] 5.1 Correct the `AGENTS.md` milestone claiming antigravity passed full real-binary conformance on 2026-07-10 — it passed a suite that could not detect this failure.
+- [x] 5.2 Note in `AGENTS.md` that a passing cold result is only meaningful alongside a passing positive control.
 
 ## 6. Verify
 
 - [x] 6.1 `make test` passes and `gofmt` is clean.
-- [ ] 6.2 `make test-integration` passes for all three adapters, positive control included.
-- [ ] 6.3 Re-run the dogfood review through antigravity and confirm the findings are about the material, not about a flag name.
+- [x] 6.2 `make test-integration` passes for all three adapters, positive control included. The only failure is `TestCodexProvenance`, the pre-existing `codex-default` defect this change names as a non-goal.
+- [x] 6.3 Re-run the dogfood review through antigravity and confirm the findings are about the material, not about a flag name.
