@@ -54,6 +54,21 @@ func TestConformCatchesViolations(t *testing.T) {
 			}
 		})
 	}
+	// A provider that discards the material answers at confident length, so
+	// non-emptiness cannot catch it. The positive control can.
+	t.Run("discarded-material", func(t *testing.T) {
+		p := NewLoopback(DiscardMaterial())
+		res, err := p.Review(t.Context(), provider.Request{Prompt: "p", Material: "m"})
+		if err != nil {
+			t.Fatalf("rigged provider must still run: %v", err)
+		}
+		if res.Findings == "" {
+			t.Fatal("rig must return non-empty output, or it proves nothing about non-emptiness")
+		}
+		if err := checkPositiveControl(t, p); err == nil || !strings.Contains(err.Error(), "positive control failed") {
+			t.Errorf("expected positive control failure, got %v", err)
+		}
+	})
 	t.Run("repo-read", func(t *testing.T) {
 		err := checkRepoReadCold(t, NewLoopback(ReadReferencedFiles()))
 		if err == nil || !strings.Contains(err.Error(), "cold-reviewer violation") {

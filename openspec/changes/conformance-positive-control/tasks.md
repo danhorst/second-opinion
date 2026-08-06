@@ -1,9 +1,9 @@
 ## 1. Prove the control catches the bug
 
-- [ ] 1.1 Add the positive control to `providertest.Conform`: material carrying a canary token, its own non-adversarial prompt instructing verbatim repetition, and an assertion that the reviewer's output contains the token.
-- [ ] 1.2 Add a `DiscardMaterial` mode to the loopback reference provider that ignores the request's material and returns unrelated non-empty output.
-- [ ] 1.3 Assert the positive control fails against that rigged provider — non-emptiness must not satisfy it.
-- [ ] 1.4 **Before fixing the adapter**, run the control against the real `agy` binary with the current invocation and record that it fails. A control that has never failed is not yet a control.
+- [x] 1.1 Add the positive control to `providertest.Conform`: material carrying a canary token, its own non-adversarial prompt instructing verbatim repetition, and an assertion that the reviewer's output contains the token.
+- [x] 1.2 Add a `DiscardMaterial` mode to the loopback reference provider that ignores the request's material and returns unrelated non-empty output.
+- [x] 1.3 Assert the positive control fails against that rigged provider — non-emptiness must not satisfy it.
+- [x] 1.4 **Before fixing the adapter**, run the control against the real `agy` binary with the current invocation and record that it fails. A control that has never failed is not yet a control.
 
 ## 2. Fix the antigravity invocation
 
@@ -14,8 +14,8 @@
 
 ## 3. Make the cold checks honest
 
-- [ ] 3.1 Run the positive control before the cold checks in `Conform`.
-- [ ] 3.2 When the positive control fails, report the cold checks as inconclusive rather than passing.
+- [x] 3.1 Run the positive control before the cold checks in `Conform`.
+- [x] 3.2 When the positive control fails, report the cold checks as inconclusive rather than passing.
 - [ ] 3.3 Assert this reporting behavior against the `DiscardMaterial` provider: cold checks must not emit a pass beneath a failed control.
 
 ## 4. Re-verify the other adapters
