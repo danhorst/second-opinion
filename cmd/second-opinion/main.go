@@ -18,20 +18,26 @@ import (
 	"github.com/danhorst/second-opinion/internal/review"
 )
 
-const usage = `usage: second-opinion [flags] PATH...
+// usage renders the registered providers rather than hardcoding them, so
+// adding an adapter updates the help text from the registry alone.
+func usage() string {
+	return fmt.Sprintf(`usage: second-opinion [flags] PATH...
        second-opinion [flags] --diff [BASE]
 
-  PATH...        files to review, concatenated in argument order
-  --diff [BASE]  review the git diff against BASE (default: HEAD)
-  --provider P   reviewer provider; defaults to $SECOND_OPINION_PROVIDER
-  --model M      force a model (provider semantics apply)
-  --prompt-file  replace the baked review prompt with a file's contents
+  PATH...           files to review, concatenated in argument order
+  --diff [BASE]     review the git diff against BASE (default: HEAD)
+  --provider P      reviewer provider (%s)
+                    defaults to $SECOND_OPINION_PROVIDER
+  --model M         force a model (provider semantics apply)
+  --prompt-file     replace the baked review prompt with a file's contents
+  --list-providers  print the registered provider names and exit
 
 subcommands:
   skill install  install the calling-agent skill for claude/codex harnesses
 
 exit codes: 0 review completed; 1 reviewer did not run; 2 usage error
-`
+`, strings.Join(review.Providers(), ", "))
+}
 
 type config struct {
 	provider   string
@@ -41,6 +47,7 @@ type config struct {
 	diffBase   string
 	paths      []string
 	help       bool
+	listProv   bool
 }
 
 // parseArgs is a manual loop because --diff takes an optional value, which
@@ -59,6 +66,8 @@ func parseArgs(args []string) (config, error) {
 		switch arg := args[i]; arg {
 		case "-h", "--help":
 			cfg.help = true
+		case "--list-providers":
+			cfg.listProv = true
 		case "--provider":
 			cfg.provider, err = value(&i, arg)
 		case "--model":
@@ -81,7 +90,7 @@ func parseArgs(args []string) (config, error) {
 			return cfg, err
 		}
 	}
-	if cfg.help {
+	if cfg.help || cfg.listProv {
 		return cfg, nil
 	}
 	if cfg.diffMode && len(cfg.paths) > 0 {
@@ -100,11 +109,19 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 
 	cfg, err := parseArgs(args)
 	if err != nil {
-		fmt.Fprintf(stderr, "second-opinion: %v\n%s", err, usage)
+		fmt.Fprintf(stderr, "second-opinion: %v\n%s", err, usage())
 		return 2
 	}
 	if cfg.help {
-		fmt.Fprint(stdout, usage)
+		fmt.Fprint(stdout, usage())
+		return 0
+	}
+	// Answers a question about the binary, so it runs before target assembly
+	// and provider selection: no target, provider, or repo is required.
+	if cfg.listProv {
+		for _, name := range review.Providers() {
+			fmt.Fprintln(stdout, name)
+		}
 		return 0
 	}
 

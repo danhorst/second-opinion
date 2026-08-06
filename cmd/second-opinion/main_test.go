@@ -9,6 +9,7 @@ import (
 
 	"github.com/danhorst/second-opinion/internal/provider"
 	"github.com/danhorst/second-opinion/internal/provider/providertest"
+	"github.com/danhorst/second-opinion/internal/review"
 )
 
 func loopback(name, model string) (provider.Provider, error) {
@@ -123,6 +124,60 @@ func TestPromptFileOverride(t *testing.T) {
 	}
 	if captured.Prompt != "custom prompt" {
 		t.Errorf("override must replace the prompt wholesale, got %q", captured.Prompt)
+	}
+}
+
+func TestListProvidersNeedsNothingElse(t *testing.T) {
+	code, stdout, stderr := runCLI(t, []string{"--list-providers"}, noEnv, loopback)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0 (stderr: %s)", code, stderr)
+	}
+	if stderr != "" {
+		t.Errorf("stderr must be empty: %q", stderr)
+	}
+	got := strings.Fields(strings.TrimSpace(stdout))
+	want := review.Providers()
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want one name per line: %v", got, want)
+	}
+	for i, name := range want {
+		if got[i] != name {
+			t.Errorf("line %d = %q, want %q", i, got[i], name)
+		}
+	}
+}
+
+// The output is only useful if it round-trips: every name it prints must be
+// accepted by --provider.
+func TestListedProvidersAreSelectable(t *testing.T) {
+	_, stdout, _ := runCLI(t, []string{"--list-providers"}, noEnv, loopback)
+	for _, name := range strings.Fields(strings.TrimSpace(stdout)) {
+		if _, err := review.NewProvider(name, ""); err != nil {
+			t.Errorf("listed provider %q is not selectable: %v", name, err)
+		}
+	}
+}
+
+func TestListProvidersIgnoresEnvironment(t *testing.T) {
+	env := func(string) string { return "not-a-provider" }
+	code, stdout, _ := runCLI(t, []string{"--list-providers"}, env, loopback)
+	if code != 0 {
+		t.Errorf("exit = %d, want 0", code)
+	}
+	if !strings.Contains(stdout, "codex") {
+		t.Errorf("environment must not affect the list: %q", stdout)
+	}
+}
+
+func TestUsageNamesRegisteredProviders(t *testing.T) {
+	text := usage()
+	for _, name := range review.Providers() {
+		if !strings.Contains(text, name) {
+			t.Errorf("usage must name provider %s: %q", name, text)
+		}
+	}
+	if !strings.Contains(text, "--list-providers") {
+		t.Errorf("usage must document --list-providers: %q", text)
 	}
 }
 

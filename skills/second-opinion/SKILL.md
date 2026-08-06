@@ -18,7 +18,7 @@ Raw reviewer output is mostly triage overhead — the value is in the filtering,
 **Choose the reviewer, don't default it.**
 The tool ships no default provider — pass `--provider` or set `SECOND_OPINION_PROVIDER`.
 Pick a reviewer that differs from the model that wrote the material: a different model of the same family is a valid second opinion; the same model defeats the premise.
-Run without a provider to see what is registered.
+Run `second-opinion --list-providers` to see what is registered.
 
 **Model forcing is provider-specific.**
 Some providers reject or substitute forced models depending on their auth; the tool handles the known fallbacks.
