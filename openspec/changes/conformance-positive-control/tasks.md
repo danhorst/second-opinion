@@ -7,10 +7,10 @@
 
 ## 2. Fix the antigravity invocation
 
-- [ ] 2.1 Reorder `buildInvocation` in `internal/provider/antigravity/antigravity.go` to `agy --sandbox [--model M] --print <instruction>`, so the instruction is the value `--print` consumes.
-- [ ] 2.2 Rewrite the white-box unit test to assert position — the argument after `--print` is the composed instruction — rather than flag presence.
-- [ ] 2.3 Add a white-box case with a forced model, asserting the model flag precedes `--print` and the instruction still immediately follows it.
-- [ ] 2.4 Re-run the positive control against the real binary and confirm it now passes.
+- [x] 2.1 Reorder `buildInvocation` in `internal/provider/antigravity/antigravity.go` to `agy --sandbox [--model M] --print <instruction>`, so the instruction is the value `--print` consumes.
+- [x] 2.2 Rewrite the white-box unit test to assert position — the argument after `--print` is the composed instruction — rather than flag presence.
+- [x] 2.3 Add a white-box case with a forced model, asserting the model flag precedes `--print` and the instruction still immediately follows it.
+- [x] 2.4 Re-run the positive control against the real binary and confirm it now passes.
 
 ## 3. Make the cold checks honest
 

@@ -70,12 +70,16 @@ func composeInstruction(req provider.Request) string {
 // invocation is testable without executing agy. Isolation comes from the
 // caller running the process with its working directory set to workdir;
 // there is no stdin.
+//
+// --print takes the prompt as its value rather than acting as a boolean, so
+// the instruction must immediately follow it. Any flag placed between the two
+// is consumed as the prompt and the material is silently never sent.
 func buildInvocation(req provider.Request, model string) (argv []string) {
-	argv = []string{"agy", "--print", "--sandbox"}
+	argv = []string{"agy", "--sandbox"}
 	if model != "" {
 		argv = append(argv, "--model", model)
 	}
-	argv = append(argv, composeInstruction(req))
+	argv = append(argv, "--print", composeInstruction(req))
 	return argv
 }
 
