@@ -65,8 +65,22 @@ func TestConformCatchesViolations(t *testing.T) {
 		if res.Findings == "" {
 			t.Fatal("rig must return non-empty output, or it proves nothing about non-emptiness")
 		}
-		if err := checkPositiveControl(t, p); err == nil || !strings.Contains(err.Error(), "positive control failed") {
-			t.Errorf("expected positive control failure, got %v", err)
+		controlErr := checkPositiveControl(t, p)
+		if controlErr == nil || !strings.Contains(controlErr.Error(), "positive control failed") {
+			t.Fatalf("expected positive control failure, got %v", controlErr)
+		}
+
+		// The vacuous pass this change exists to catch: a provider that sent
+		// nothing satisfies the cold check outright. The gate is what stops
+		// that from being reported as a pass.
+		if err := checkInstructionFileCold(t, p); err != nil {
+			t.Errorf("expected the cold check to pass vacuously beneath a failed control, got %v", err)
+		}
+		if inconclusiveReason(controlErr) == "" {
+			t.Error("a failed positive control must make cold results inconclusive")
+		}
+		if inconclusiveReason(nil) != "" {
+			t.Error("a passing positive control must leave cold results standing on their own")
 		}
 	})
 	t.Run("repo-read", func(t *testing.T) {

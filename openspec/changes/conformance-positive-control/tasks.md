@@ -16,7 +16,7 @@
 
 - [x] 3.1 Run the positive control before the cold checks in `Conform`.
 - [x] 3.2 When the positive control fails, report the cold checks as inconclusive rather than passing.
-- [ ] 3.3 Assert this reporting behavior against the `DiscardMaterial` provider: cold checks must not emit a pass beneath a failed control.
+- [x] 3.3 Assert this reporting behavior against the `DiscardMaterial` provider: cold checks must not emit a pass beneath a failed control.
 
 ## 4. Re-verify the other adapters
 
@@ -31,6 +31,6 @@
 
 ## 6. Verify
 
-- [ ] 6.1 `make test` passes and `gofmt` is clean.
+- [x] 6.1 `make test` passes and `gofmt` is clean.
 - [ ] 6.2 `make test-integration` passes for all three adapters, positive control included.
 - [ ] 6.3 Re-run the dogfood review through antigravity and confirm the findings are about the material, not about a flag name.
