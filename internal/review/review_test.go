@@ -93,7 +93,7 @@ func TestFromDiffNotARepo(t *testing.T) {
 }
 
 func TestRegistry(t *testing.T) {
-	want := []string{"antigravity", "claude", "codex"}
+	want := []string{"antigravity", "claude", "codex", "openai-compatible"}
 	got := Providers()
 	if len(got) != len(want) {
 		t.Fatalf("providers = %v", got)

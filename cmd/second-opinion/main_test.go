@@ -34,7 +34,7 @@ func TestNoProviderRefusesWithList(t *testing.T) {
 	if code != 2 {
 		t.Errorf("exit = %d, want 2", code)
 	}
-	for _, name := range []string{"antigravity", "claude", "codex"} {
+	for _, name := range []string{"antigravity", "claude", "codex", "openai-compatible"} {
 		if !strings.Contains(stderr, name) {
 			t.Errorf("refusal must list %s: %q", name, stderr)
 		}

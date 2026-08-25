@@ -27,16 +27,20 @@ The material MUST be fully assembled by the caller before the request is made; t
 - **THEN** it is possible to reproduce byte-for-byte what the reviewer received
 
 ### Requirement: Review result carries reviewer provenance
-Every review result SHALL include provenance identifying the provider, the model that performed the review, and the identity of the prompt used.
-Provenance MUST survive to the caller unaltered so that a reviewer-equals-author violation is detectable after the fact.
+Every review result SHALL include provenance identifying the provider, the model that performed the review, the identity of the prompt used, and the identity of the material reviewed.
+Provenance MUST survive to the caller unaltered so that a reviewer-equals-author violation and a material mismatch are detectable after the fact.
 
 #### Scenario: Provenance on a successful review
 - **WHEN** a provider completes a review
-- **THEN** the result names the provider, the model that ran, and the prompt identity
+- **THEN** the result names the provider, the model that ran, the prompt identity, and the SHA-256 identity of the exact material value received by the provider
 
 #### Scenario: Reported model reflects what actually ran
 - **WHEN** a provider substitutes a different model than requested (for any provider-internal reason)
 - **THEN** the result's provenance names the model that actually performed the review
+
+#### Scenario: Material identity is transport-independent
+- **WHEN** two providers receive byte-identical material
+- **THEN** both results report the same material identity regardless of whether the providers use a subprocess, HTTP, or another transport
 
 ### Requirement: Ran and did-not-run are distinguishable
 The interface's error semantics SHALL distinguish a reviewer that ran (its findings, even if empty, are in the result) from a reviewer that did not run (an error, no result).

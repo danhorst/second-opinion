@@ -25,7 +25,7 @@ func TestBuildInvocationColdFlags(t *testing.T) {
 			t.Errorf("argv missing %v: %v", want, argv)
 		}
 	}
-	for _, flag := range []string{"--skip-git-repo-check", "--ephemeral", "--json"} {
+	for _, flag := range []string{"--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--ephemeral", "--json"} {
 		if !slices.Contains(argv, flag) {
 			t.Errorf("argv missing %s: %v", flag, argv)
 		}
@@ -55,26 +55,46 @@ func TestParseEventsProtocolShape(t *testing.T) {
 {"id":"2","msg":{"type":"agent_message","message":"first draft"}}
 {"id":"3","msg":{"type":"agent_message","message":"Finding 1: the loop is off by one."}}
 `)
-	model, findings := parseEvents(stream)
+	model, findings, hasMessage := parseEvents(stream)
 	if model != "gpt-5.3-codex" {
 		t.Errorf("model = %q", model)
 	}
 	if findings != "Finding 1: the loop is off by one." {
 		t.Errorf("findings = %q (last agent message must win)", findings)
 	}
+	if !hasMessage {
+		t.Error("agent message must be recognized")
+	}
 }
 
 func TestParseEventsItemShape(t *testing.T) {
 	stream := []byte(`
 {"type":"session.created","session":{"model":"gpt-5.3-codex"}}
-{"type":"item.completed","item":{"item_type":"agent_message","text":"Finding: unchecked error."}}
+{"type":"item.completed","item":{"type":"agent_message","text":"Finding: unchecked error."}}
 `)
-	model, findings := parseEvents(stream)
+	model, findings, hasMessage := parseEvents(stream)
 	if model != "gpt-5.3-codex" {
 		t.Errorf("model = %q", model)
 	}
 	if findings != "Finding: unchecked error." {
 		t.Errorf("findings = %q", findings)
+	}
+	if !hasMessage {
+		t.Error("agent message must be recognized")
+	}
+}
+
+func TestParseEventsRecognizesEmptyAgentMessage(t *testing.T) {
+	model, findings, hasMessage := parseEvents([]byte(`{"model":"gpt-5.3-codex"}
+{"type":"agent_message","message":""}`))
+	if model != "gpt-5.3-codex" || findings != "" || !hasMessage {
+		t.Errorf("empty agent message must be recognized, got %q / %q / %t", model, findings, hasMessage)
+	}
+}
+
+func TestDefaultModelMarker(t *testing.T) {
+	if defaultModelMarker != "codex-default" {
+		t.Errorf("default model marker = %q", defaultModelMarker)
 	}
 }
 
@@ -101,9 +121,16 @@ func TestClassifyUsageLimit(t *testing.T) {
 }
 
 func TestParseEventsGarbage(t *testing.T) {
-	model, findings := parseEvents([]byte("not json\n{\"broken\":\ntext\n"))
-	if model != "" || findings != "" {
-		t.Errorf("garbage stream must parse to nothing, got %q / %q", model, findings)
+	model, findings, hasMessage := parseEvents([]byte("not json\n{\"broken\":\ntext\n"))
+	if model != "" || findings != "" || hasMessage {
+		t.Errorf("garbage stream must parse to nothing, got %q / %q / %t", model, findings, hasMessage)
+	}
+}
+
+func TestErrorEventMessageNestedCapture(t *testing.T) {
+	stream := []byte(`{"type":"turn.failed","error":{"message":"the model is not supported when using Codex with a ChatGPT account"}}`)
+	if got := errorEventMessage(stream); !strings.Contains(got, chatgptModelRejection) {
+		t.Errorf("nested error message not extracted: %q", got)
 	}
 }
 
@@ -130,6 +157,24 @@ func TestReviewPreCancelled(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("want context.Canceled, got %v", err)
+	}
+}
+
+func TestReviewDoesNotFallbackAfterCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if shouldFallback(ctx, "o3", chatgptModelRejection) {
+		t.Error("cancelled context must not trigger fallback")
+	}
+}
+
+func TestFallbackRequiresModelRejectionAndFailure(t *testing.T) {
+	ctx := context.Background()
+	if !shouldFallback(ctx, "o3", chatgptModelRejection) {
+		t.Error("forced model rejection must trigger fallback predicate")
+	}
+	if shouldFallback(ctx, "o3", "some other failure") {
+		t.Error("unrelated failure must not trigger fallback predicate")
 	}
 }
 

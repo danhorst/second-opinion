@@ -29,6 +29,8 @@ type Provenance struct {
 	Model string
 	// PromptHash is HashPrompt of the request's Prompt.
 	PromptHash string
+	// MaterialHash is HashMaterial of the request's Material.
+	MaterialHash string
 }
 
 // Result is a completed review. Findings is raw reviewer output; its
@@ -56,5 +58,11 @@ var (
 // All adapters use this helper so prompt identity cannot diverge.
 func HashPrompt(prompt string) string {
 	sum := sha256.Sum256([]byte(prompt))
+	return hex.EncodeToString(sum[:])
+}
+
+// HashMaterial computes the canonical material identity used in Provenance.
+func HashMaterial(material string) string {
+	sum := sha256.Sum256([]byte(material))
 	return hex.EncodeToString(sum[:])
 }

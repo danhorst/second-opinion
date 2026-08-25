@@ -1,6 +1,8 @@
 // Package codex implements provider.Provider by shelling out to the codex
-// CLI. Every invocation runs cold by construction: an empty temp directory,
-// project-doc loading suppressed, and a read-only ephemeral sandbox.
+// CLI. Every invocation suppresses implicit context by construction: an empty
+// temp directory, ambient config and rules disabled, project-doc loading
+// suppressed, and a read-only ephemeral sandbox. The read-only sandbox does
+// not provide strict material-only filesystem isolation.
 package codex
 
 import (
@@ -16,6 +18,10 @@ import (
 )
 
 const providerName = "codex"
+
+// defaultModelMarker is an explicit provenance degradation: current Codex
+// JSONL success events do not name the model selected for an unforced run.
+const defaultModelMarker = "codex-default"
 
 // chatgptModelRejection is codex's stderr signature for a model the active
 // ChatGPT-account auth does not expose. Held in one constant: if OpenAI
@@ -54,6 +60,8 @@ func buildInvocation(req provider.Request, model, workdir string) (argv []string
 		"codex", "exec",
 		"-C", workdir,
 		"-c", "project_doc_max_bytes=0",
+		"--ignore-user-config",
+		"--ignore-rules",
 		"--sandbox", "read-only",
 		"--skip-git-repo-check",
 		"--ephemeral",
@@ -72,10 +80,14 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 		return nil, err
 	}
 	res, diag, err := p.run(ctx, req, p.model)
-	if err != nil && p.model != "" && strings.Contains(diag, chatgptModelRejection) {
+	if err != nil && shouldFallback(ctx, p.model, diag) {
 		res, _, err = p.run(ctx, req, "")
 	}
 	return res, err
+}
+
+func shouldFallback(ctx context.Context, model, diag string) bool {
+	return ctx.Err() == nil && model != "" && strings.Contains(diag, chatgptModelRejection)
 }
 
 // run executes one codex invocation and returns the parsed result. The raw
@@ -109,21 +121,26 @@ func (p *Provider) run(ctx context.Context, req provider.Request, model string) 
 		return nil, diag, classify(err, diag)
 	}
 
-	ranModel, findings := parseEvents(stdout.Bytes())
+	ranModel, findings, hasMessage := parseEvents(stdout.Bytes())
+	if !hasMessage {
+		return nil, "", fmt.Errorf("codex: successful response contained no recognized agent message")
+	}
 	if ranModel == "" {
-		// Documented degradation, not silent invention: the requested model,
-		// or codex's default when none was forced.
-		ranModel = model
-		if ranModel == "" {
-			ranModel = "codex-default"
+		if model == "" {
+			ranModel = defaultModelMarker
+		} else {
+			// A forced model is the only honest fallback when Codex omits the model
+			// event: the command explicitly constrained the session to that model.
+			ranModel = model
 		}
 	}
 	return &provider.Result{
 		Findings: findings,
 		Provenance: provider.Provenance{
-			Provider:   providerName,
-			Model:      ranModel,
-			PromptHash: provider.HashPrompt(req.Prompt),
+			Provider:     providerName,
+			Model:        ranModel,
+			PromptHash:   provider.HashPrompt(req.Prompt),
+			MaterialHash: provider.HashMaterial(req.Material),
 		},
 	}, stderr.String(), nil
 }
@@ -139,10 +156,11 @@ func classify(err error, diag string) error {
 	if errors.Is(err, exec.ErrNotFound) {
 		return fmt.Errorf("%w: codex binary not found: %v", provider.ErrUnavailable, err)
 	}
-	if strings.Contains(diag, usageLimitSignature) {
+	lower := strings.ToLower(diag)
+	if strings.Contains(lower, usageLimitSignature) {
 		return fmt.Errorf("%w: %s", provider.ErrUnavailable, firstLine(diag))
 	}
-	if strings.Contains(diag, chatgptModelRejection) {
+	if strings.Contains(lower, strings.ToLower(chatgptModelRejection)) || strings.Contains(lower, "authentication") || strings.Contains(lower, "unauthorized") || strings.Contains(lower, "not logged in") || strings.Contains(lower, "sign in") {
 		return fmt.Errorf("%w: %s", provider.ErrAuth, firstLine(diag))
 	}
 	return fmt.Errorf("codex: %w: %s", err, firstLine(diag))

@@ -9,10 +9,10 @@ import (
 // parseEvents extracts the model that ran and the final agent message from
 // codex's --json event stream. Parsing is defensive: unknown event shapes
 // are skipped, and both the protocol shape ({"msg":{"type":"agent_message",
-// "message":...}}) and the item shape ({"item":{"item_type":"agent_message",
-// "text":...}}) are recognized. The integration test pins the shapes the
+// "message":...}}) and the item shapes ({"item":{"item_type":"agent_message",
+// "text":...}} or {"item":{"type":"agent_message","text":...}}) are recognized. The integration test pins the shapes the
 // installed binary actually emits.
-func parseEvents(stream []byte) (model, findings string) {
+func parseEvents(stream []byte) (model, findings string, hasMessage bool) {
 	sc := bufio.NewScanner(bytes.NewReader(stream))
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 	for sc.Scan() {
@@ -29,9 +29,10 @@ func parseEvents(stream []byte) (model, findings string) {
 		}
 		if text, ok := agentMessage(event); ok {
 			findings = text // last agent message wins
+			hasMessage = true
 		}
 	}
-	return model, findings
+	return model, findings, hasMessage
 }
 
 // errorEventMessage extracts the message from the first error event in the
@@ -49,8 +50,35 @@ func errorEventMessage(stream []byte) string {
 		if err := json.Unmarshal(line, &event); err != nil {
 			continue
 		}
-		if typ, _ := event["type"].(string); typ == "error" {
-			if msg, ok := event["message"].(string); ok && msg != "" {
+		if msg := errorMessage(event, false); msg != "" {
+			return msg
+		}
+	}
+	return ""
+}
+
+func errorMessage(v any, inError bool) string {
+	switch node := v.(type) {
+	case map[string]any:
+		typ, _ := node["type"].(string)
+		if typ == "error" || inError {
+			if msg, ok := node["message"].(string); ok && msg != "" {
+				return msg
+			}
+		}
+		if nested, ok := node["error"]; ok {
+			if msg := errorMessage(nested, true); msg != "" {
+				return msg
+			}
+		}
+		for _, child := range node {
+			if msg := errorMessage(child, inError || typ == "error"); msg != "" {
+				return msg
+			}
+		}
+	case []any:
+		for _, child := range node {
+			if msg := errorMessage(child, inError); msg != "" {
 				return msg
 			}
 		}

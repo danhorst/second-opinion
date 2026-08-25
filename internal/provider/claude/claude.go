@@ -164,9 +164,10 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 	return &provider.Result{
 		Findings: strings.TrimSpace(env.Result),
 		Provenance: provider.Provenance{
-			Provider:   providerName,
-			Model:      model,
-			PromptHash: provider.HashPrompt(req.Prompt),
+			Provider:     providerName,
+			Model:        model,
+			PromptHash:   provider.HashPrompt(req.Prompt),
+			MaterialHash: provider.HashMaterial(req.Material),
 		},
 	}, nil
 }

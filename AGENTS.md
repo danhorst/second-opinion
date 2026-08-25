@@ -26,9 +26,10 @@ Cover behavior, and name what you cannot cover.
 
 ## Architecture
 
-- `internal/provider` — the `Provider` contract: `Request` (prompt + material by value), `Result` (findings + provenance), sentinel errors, `HashPrompt`.
+- `internal/provider` — the `Provider` contract: `Request` (prompt + material by value), `Result` (findings + provenance), sentinel errors, `HashPrompt`, and `HashMaterial`.
 - `internal/provider/providertest` — the shared conformance suite (`Conform`) and the `Loopback` reference provider that validates it.
-- `internal/provider/codex` — the codex adapter: cold invocation by construction, JSONL provenance extraction, ChatGPT-auth model fallback.
+- `internal/provider/codex` — the codex adapter: implicit-context suppression, JSONL provenance extraction, ChatGPT-auth model fallback, and explicit `codex-default` degradation when unforced model identity is absent.
+- `internal/provider/openai_compatible` — the configurable non-streaming HTTP adapter for OpenAI-compatible endpoints, including OpenRouter.
 - `internal/provider/antigravity` — the antigravity (`agy`) adapter: cwd isolation, prompt-embedded material, documented provenance degradation for unforced reviews.
 - `internal/provider/claude` — the claude adapter: tools and setting sources disabled (repo reads impossible, user memory suppressed), truthful model provenance from the JSON envelope.
 - `internal/review` — engine pieces shared by front-ends: the baked adversarial prompt (transport-neutral), target assembly (`FromFiles`, `FromDiff`), the provider registry.
@@ -39,7 +40,8 @@ Cover behavior, and name what you cannot cover.
 
 - [x] `bootstrap-release` — `scripts/release`, `.github/workflows/`, `CHANGELOG.md`, tap formula; v0.1.0 released 2026-07-14.
 - [x] Provider interface and conformance suite.
-- [ ] Codex adapter — implemented; blocked on real-binary conformance (codex usage limit resets 2026-07-19).
+- [x] Codex adapter — implemented; real-binary conformance verified against codex-cli 0.149.0-alpha.4.3 on 2026-08-25.
+- [ ] OpenAI-compatible provider — implemented; endpoint integration verification depends on configured API credentials.
 - [ ] CLI front-end — implemented; retiring `dotfiles/claude/bin/second-opinion.sh` is a manual follow-up in the dotfiles repo once the binary is installed.
 - [ ] MCP front-end.
 - [x] Antigravity (`agy`) adapter — full real-binary conformance passed 2026-07-10.
