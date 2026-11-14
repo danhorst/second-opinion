@@ -2,8 +2,8 @@
 // CLI. The coldest posture of the adapters: empty temp-directory cwd, all
 // tools disabled (repo reads are impossible, not merely unprompted), and all
 // setting sources suppressed (no user or project instruction and memory
-// files). Material travels by value inside the composed instruction —
-// claude's print mode with a prompt argument does not read stdin.
+// files). Material travels by value inside the composed instruction on stdin;
+// no positional prompt is supplied.
 package claude
 
 import (
@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/danhorst/second-opinion/internal/provider"
+	"github.com/danhorst/second-opinion/internal/provider/process"
 )
 
 const providerName = "claude"
@@ -26,6 +27,8 @@ var authFailureSignatures = []string{
 	"log in",
 	"login",
 	"authentication",
+	"failed to authenticate",
+	"oauth session expired",
 	"invalid api key",
 	"unauthorized",
 }
@@ -68,10 +71,11 @@ func composeInstruction(req provider.Request) string {
 // buildInvocation constructs the claude command line. Pure so the cold
 // flags are testable without executing claude. Isolation comes from the
 // caller running the process with its working directory set to an empty
-// temp directory; there is no stdin.
+// temp directory; the composed instruction travels on stdin.
 func buildInvocation(req provider.Request, model string) (argv []string) {
 	argv = []string{
 		"claude", "-p",
+		"--safe-mode", "--disable-slash-commands", "--strict-mcp-config", "--no-session-persistence",
 		"--output-format", "json",
 		"--tools", "",
 		"--setting-sources", "",
@@ -79,7 +83,6 @@ func buildInvocation(req provider.Request, model string) (argv []string) {
 	if model != "" {
 		argv = append(argv, "--model", model)
 	}
-	argv = append(argv, composeInstruction(req))
 	return argv
 }
 
@@ -91,6 +94,24 @@ type envelope struct {
 	IsError    bool                  `json:"is_error"`
 	Result     string                `json:"result"`
 	ModelUsage map[string]modelUsage `json:"modelUsage"`
+}
+
+// validateSuccess checks presence as well as zero values: {} and null are
+// transport failures, whereas an explicit empty result is a valid review.
+func validateSuccess(data []byte) error {
+	var fields struct {
+		Type    string  `json:"type"`
+		Subtype string  `json:"subtype"`
+		IsError *bool   `json:"is_error"`
+		Result  *string `json:"result"`
+	}
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return fmt.Errorf("claude: invalid JSON result envelope")
+	}
+	if fields.Type != "result" || fields.Subtype != "success" || fields.IsError == nil || *fields.IsError || fields.Result == nil {
+		return fmt.Errorf("claude: missing or unsuccessful result envelope")
+	}
+	return nil
 }
 
 type modelUsage struct {
@@ -125,11 +146,12 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 	argv := buildInvocation(req, p.model)
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = workdir
+	cmd.Stdin = strings.NewReader(composeInstruction(req))
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	runErr := cmd.Run()
+	runErr := process.Run(cmd)
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, ctxErr
 	}
@@ -150,8 +172,8 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 		}
 		return nil, classify(runErr, diag)
 	}
-	if !parsed {
-		return nil, fmt.Errorf("claude: unparseable result envelope: %s", firstLine(stdout.String()))
+	if err := validateSuccess(stdout.Bytes()); err != nil {
+		return nil, err
 	}
 
 	model := env.dominantModel()
@@ -162,7 +184,7 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 		}
 	}
 	return &provider.Result{
-		Findings: strings.TrimSpace(env.Result),
+		Findings: env.Result,
 		Provenance: provider.Provenance{
 			Provider:   providerName,
 			Model:      model,

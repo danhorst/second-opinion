@@ -89,6 +89,11 @@ func TestConformCatchesViolations(t *testing.T) {
 			t.Errorf("expected cold-reviewer violation, got %v", err)
 		}
 	})
+	t.Run("absolute-repo-read", func(t *testing.T) {
+		if err := checkAbsoluteRepoReadCold(t, NewLoopback(ReadReferencedFiles())); err == nil || !strings.Contains(err.Error(), "absolute-path") {
+			t.Fatalf("expected absolute-path leak failure: %v", err)
+		}
+	})
 	t.Run("omitted-provenance", func(t *testing.T) {
 		err := checkContract(t.Context(), NewLoopback(OmitProvenance()))
 		if err == nil || !strings.Contains(err.Error(), "provenance incomplete") {
@@ -101,6 +106,27 @@ func TestConformCatchesViolations(t *testing.T) {
 			t.Errorf("expected cancellation failure, got %v", err)
 		}
 	})
+}
+
+type nilProvider struct{}
+
+func (nilProvider) Review(context.Context, provider.Request) (*provider.Result, error) {
+	return nil, nil
+}
+
+func TestNilResultsFailWithoutPanicking(t *testing.T) {
+	checks := []func() error{
+		func() error { return checkContract(t.Context(), nilProvider{}) },
+		func() error { return checkPositiveControl(t, nilProvider{}) },
+		func() error { return checkInstructionFileCold(t, nilProvider{}) },
+		func() error { return checkRepoReadCold(t, nilProvider{}) },
+		func() error { return checkAbsoluteRepoReadCold(t, nilProvider{}) },
+	}
+	for _, check := range checks {
+		if err := check(); err == nil {
+			t.Fatal("nil result passed conformance")
+		}
+	}
 }
 
 // Did-not-run yields an error and no result; ran-and-found-nothing yields a

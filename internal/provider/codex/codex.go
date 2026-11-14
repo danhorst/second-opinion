@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/danhorst/second-opinion/internal/provider"
+	"github.com/danhorst/second-opinion/internal/provider/process"
 )
 
 const providerName = "codex"
@@ -22,6 +23,12 @@ const providerName = "codex"
 // rewords it, forced-model reviews fail loudly with ErrAuth instead of
 // silently reviewing on the wrong model.
 const chatgptModelRejection = "not supported when using Codex with a ChatGPT account"
+
+// defaultModelMarker is the documented provenance degradation for unforced
+// reviews: codex's --json event stream never carries a model field (checked
+// against the real binary on both forced and unforced runs), so an unforced
+// review reports this marker rather than an invented model name.
+const defaultModelMarker = "codex-default"
 
 // Provider runs reviews through the codex CLI.
 type Provider struct {
@@ -52,6 +59,17 @@ func New(opts ...Option) *Provider {
 func buildInvocation(req provider.Request, model, workdir string) (argv []string, stdin string) {
 	argv = []string{
 		"codex", "exec",
+		"--ignore-user-config", "--ignore-rules", "--strict-config",
+		"--disable", "shell_tool",
+		"--disable", "code_mode_host",
+		"--disable", "view_image",
+		"--disable", "apps",
+		"--disable", "plugins",
+		"--disable", "memories",
+		"--disable", "multi_agent",
+		"--disable", "skill_search",
+		"--enable", "skip_host_skill_discovery",
+		"-c", `web_search="disabled"`,
 		"-C", workdir,
 		"-c", "project_doc_max_bytes=0",
 		"--sandbox", "read-only",
@@ -96,7 +114,7 @@ func (p *Provider) run(ctx context.Context, req provider.Request, model string) 
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
+	if err := process.Run(cmd); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, stderr.String(), ctxErr
 		}
@@ -109,14 +127,13 @@ func (p *Provider) run(ctx context.Context, req provider.Request, model string) 
 		return nil, diag, classify(err, diag)
 	}
 
-	ranModel, findings := parseEvents(stdout.Bytes())
+	findings, err := parseEvents(stdout.Bytes())
+	if err != nil {
+		return nil, stderr.String(), err
+	}
+	ranModel := model
 	if ranModel == "" {
-		// Documented degradation, not silent invention: the requested model,
-		// or codex's default when none was forced.
-		ranModel = model
-		if ranModel == "" {
-			ranModel = "codex-default"
-		}
+		ranModel = defaultModelMarker
 	}
 	return &provider.Result{
 		Findings: findings,

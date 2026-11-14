@@ -34,8 +34,8 @@ context: |
   - Provider selection and model selection are separate concerns. Forcing a model is a foot-gun:
     Codex silently rejects some models under ChatGPT-account auth. The tool detects that one failure
     and falls back to the provider default.
-  - Failure is loud. Exit status distinguishes "the reviewer ran and found nothing" from
-    "the reviewer did not run."
+  - Failure is loud. Exit status distinguishes a completed review (including no findings) from
+    review or output failure; preview and discovery explicitly identify their operation.
 
   ## Tech stack
 
@@ -70,9 +70,11 @@ context: |
 
   - `codex` (OpenAI) — subprocess. Auth is ChatGPT-account or API key, and the two expose different model sets.
   - `claude` (Anthropic) — subprocess, `claude -p --output-format json --tools "" --setting-sources ""`;
-    no stdin with a prompt argument; truthful model provenance via the JSON envelope's modelUsage.
+    composed request on stdin with no positional prompt; safe mode and strict MCP configuration;
+    model provenance via the JSON envelope's modelUsage.
   - `antigravity` (Google) — subprocess, `agy --print`; itself a multi-model harness (Gemini, Claude,
-    GPT-OSS), no stdin in print mode, no structured output naming the model that ran.
+    GPT-OSS); this adapter uses text print output and embeds material in the prompt argument.
+    The installed CLI now advertises JSON output; adopting and validating its provenance is follow-up work.
   - `ollama` — local HTTP endpoint.
   - Google deprecated the Gemini CLI in favor of the Antigravity toolchain (2026-07); `antigravity`
     is Google's representation in the roster.

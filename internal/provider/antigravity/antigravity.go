@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/danhorst/second-opinion/internal/provider"
+	"github.com/danhorst/second-opinion/internal/provider/process"
 )
 
 const providerName = "antigravity"
@@ -102,7 +103,7 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
+	if err := process.Run(cmd); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
 		}

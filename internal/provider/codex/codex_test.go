@@ -20,8 +20,13 @@ func TestBuildInvocationColdFlags(t *testing.T) {
 		{"-c", "project_doc_max_bytes=0"},
 		{"--sandbox", "read-only"},
 	} {
-		i := slices.Index(argv, want[0])
-		if i < 0 || i+1 >= len(argv) || argv[i+1] != want[1] {
+		found := false
+		for i := 0; i+1 < len(argv); i++ {
+			if argv[i] == want[0] && argv[i+1] == want[1] {
+				found = true
+			}
+		}
+		if !found {
 			t.Errorf("argv missing %v: %v", want, argv)
 		}
 	}
@@ -49,15 +54,33 @@ func TestBuildInvocationForcedModel(t *testing.T) {
 	}
 }
 
+func TestBuildInvocationSuppressesOptionalContext(t *testing.T) {
+	argv, _ := buildInvocation(provider.Request{Prompt: "p"}, "", "/tmp/w")
+	for _, flag := range []string{"--ignore-user-config", "--ignore-rules", "--strict-config"} {
+		if !slices.Contains(argv, flag) {
+			t.Errorf("missing %s", flag)
+		}
+	}
+	for _, feature := range []string{"shell_tool", "code_mode_host", "view_image", "apps", "plugins", "memories", "multi_agent", "skill_search"} {
+		if !strings.Contains(strings.Join(argv, " "), "--disable "+feature) {
+			t.Errorf("feature not suppressed: %s", feature)
+		}
+	}
+	if !strings.Contains(strings.Join(argv, " "), "--enable skip_host_skill_discovery") || !slices.Contains(argv, `web_search="disabled"`) {
+		t.Fatal("missing skill or search isolation")
+	}
+}
+
 func TestParseEventsProtocolShape(t *testing.T) {
 	stream := []byte(`
-{"id":"1","msg":{"type":"session_configured","model":"gpt-5.3-codex","session_id":"abc"}}
+{"id":"1","msg":{"type":"session_configured","session_id":"abc"}}
 {"id":"2","msg":{"type":"agent_message","message":"first draft"}}
 {"id":"3","msg":{"type":"agent_message","message":"Finding 1: the loop is off by one."}}
+{"msg":{"type":"task_complete"}}
 `)
-	model, findings := parseEvents(stream)
-	if model != "gpt-5.3-codex" {
-		t.Errorf("model = %q", model)
+	findings, err := parseEvents(stream)
+	if err != nil {
+		t.Fatal(err)
 	}
 	if findings != "Finding 1: the loop is off by one." {
 		t.Errorf("findings = %q (last agent message must win)", findings)
@@ -66,14 +89,39 @@ func TestParseEventsProtocolShape(t *testing.T) {
 
 func TestParseEventsItemShape(t *testing.T) {
 	stream := []byte(`
-{"type":"session.created","session":{"model":"gpt-5.3-codex"}}
+{"type":"session.created","session":{"id":"abc"}}
 {"type":"item.completed","item":{"item_type":"agent_message","text":"Finding: unchecked error."}}
+{"type":"turn.completed"}
 `)
-	model, findings := parseEvents(stream)
-	if model != "gpt-5.3-codex" {
-		t.Errorf("model = %q", model)
+	findings, err := parseEvents(stream)
+	if err != nil {
+		t.Fatal(err)
 	}
 	if findings != "Finding: unchecked error." {
+		t.Errorf("findings = %q", findings)
+	}
+}
+
+// Captured from codex exec --json on 2026-08-07 against the installed
+// binary (codex-cli 0.147.0-alpha.6.5): thread.started/turn.started/
+// turn.completed frame the turn, and completed items (including non-fatal
+// ones, like the code-mode-host warning here) use item.type, not
+// item_type. No event in this stream carries a model field — confirmed on
+// both forced and unforced runs, which is why provenance no longer tries
+// to extract one from JSONL (see defaultModelMarker in codex.go).
+func TestParseEventsRealCapture(t *testing.T) {
+	stream := []byte(`
+{"type":"thread.started","thread_id":"019fddff-7211-70c1-9edf-93e7d1cef25c"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Code Mode is unavailable because failed to spawn code-mode host /opt/homebrew/bin/codex-code-mode-host: host executable was not found. Code mode will fail closed; enable features.code_mode_host and install codex-code-mode-host."}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"OK"}}
+{"type":"turn.completed","usage":{"input_tokens":13372,"cached_input_tokens":13056,"cache_write_input_tokens":0,"output_tokens":5,"reasoning_output_tokens":0}}
+`)
+	findings, err := parseEvents(stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if findings != "OK" {
 		t.Errorf("findings = %q", findings)
 	}
 }
@@ -101,9 +149,8 @@ func TestClassifyUsageLimit(t *testing.T) {
 }
 
 func TestParseEventsGarbage(t *testing.T) {
-	model, findings := parseEvents([]byte("not json\n{\"broken\":\ntext\n"))
-	if model != "" || findings != "" {
-		t.Errorf("garbage stream must parse to nothing, got %q / %q", model, findings)
+	if _, err := parseEvents([]byte("not json\n")); err == nil {
+		t.Fatal("garbage must fail")
 	}
 }
 

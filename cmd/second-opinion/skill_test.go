@@ -26,7 +26,7 @@ func TestSkillContentEssentials(t *testing.T) {
 	doc := skills.SecondOpinion
 	for _, want := range []string{
 		"--provider", "SECOND_OPINION_PROVIDER", "--diff", "--model", "--prompt-file",
-		"reviewed-by:", "severity × novelty", "two-thirds",
+		"reviewed-by:", "severity × novelty", "no rejection quota",
 		"same model defeats the premise",
 	} {
 		if !strings.Contains(doc, want) {
@@ -72,7 +72,7 @@ func TestSkillInstallDefault(t *testing.T) {
 	}
 
 	claudePath := filepath.Join(home, ".claude", "skills", "second-opinion", "SKILL.md")
-	codexPath := filepath.Join(home, ".codex", "prompts", "second-opinion.md")
+	codexPath := filepath.Join(home, ".agents", "skills", "second-opinion", "SKILL.md")
 
 	claude, err := os.ReadFile(claudePath)
 	if err != nil {
@@ -86,8 +86,8 @@ func TestSkillInstallDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(codex), "name: second-opinion") {
-		t.Error("codex install must strip frontmatter")
+	if !strings.HasPrefix(string(codex), "---\n") || !strings.Contains(string(codex), "name: second-opinion") {
+		t.Error("codex install must preserve discovery frontmatter")
 	}
 	if !strings.Contains(string(codex), "severity × novelty") {
 		t.Error("codex install must keep the body")
@@ -139,7 +139,7 @@ func TestSkillInstallHarnessSelection(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, ".claude")); !os.IsNotExist(err) {
 		t.Error("codex-only install must not touch ~/.claude")
 	}
-	if _, err := os.Stat(filepath.Join(home, ".codex", "prompts", "second-opinion.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "second-opinion", "SKILL.md")); err != nil {
 		t.Errorf("codex file missing: %v", err)
 	}
 }
@@ -189,5 +189,25 @@ func TestSkillUsageErrors(t *testing.T) {
 		if code := runSkill(args, fake.deps(t.TempDir()), &out, &errBuf); code != 2 {
 			t.Errorf("args %v: exit = %d, want 2", args, code)
 		}
+	}
+}
+
+func TestNativeSkillPreservesLegacyPrompt(t *testing.T) {
+	home := t.TempDir()
+	legacy := filepath.Join(home, ".codex", "prompts", "second-opinion.md")
+	if err := os.MkdirAll(filepath.Dir(legacy), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy, []byte("legacy edits"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeImport{}
+	var out, diag strings.Builder
+	if code := runSkill([]string{"install", "--harness", "codex"}, fake.deps(home), &out, &diag); code != 0 {
+		t.Fatalf("install: %d %s", code, diag.String())
+	}
+	got, err := os.ReadFile(legacy)
+	if err != nil || string(got) != "legacy edits" {
+		t.Fatalf("legacy file changed: %q %v", got, err)
 	}
 }

@@ -1,12 +1,15 @@
 package review
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danhorst/second-opinion/internal/provider"
 )
 
 // The baked prompt must not presume any transport — these are the phrases
@@ -83,6 +86,47 @@ func TestFromDiff(t *testing.T) {
 	if !strings.Contains(material, "-one") || !strings.Contains(material, "+two") {
 		t.Errorf("diff content missing: %q", material)
 	}
+
+	// Exercise actual Git configuration, not a stub executable. A helper
+	// would fail if invoked; a successful patch proves it was bypassed.
+	run("config", "color.ui", "always")
+	t.Setenv("GIT_EXTERNAL_DIFF", "second-opinion-nonexistent-helper")
+	run("config", "diff.test.textconv", "second-opinion-nonexistent-helper")
+	if err := os.WriteFile(".gitattributes", []byte("*.txt diff=test\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	configured, err := FromDiff("HEAD")
+	if err != nil || configured != material {
+		t.Fatalf("Git customization altered patch: %v\n%s", err, configured)
+	}
+	for _, base := range []string{"f.txt", "--stat", ""} {
+		if _, err := FromDiff(base); err == nil || errors.Is(err, ErrNothingToReview) {
+			t.Errorf("base %q must fail, got %v", base, err)
+		}
+	}
+	// A branch and a file can share a name; the revision must win.
+	run("branch", "f.txt")
+	if got, err := FromDiff("f.txt"); err != nil || got != material {
+		t.Errorf("ambiguous revision: %v\n%s", err, got)
+	}
+	run("add", "f.txt")
+	if err := os.WriteFile("f.txt", []byte("three\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("untracked.txt", []byte("untracked-canary\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := FromDiff("HEAD"); err != nil || !strings.Contains(got, "-one") || !strings.Contains(got, "+three") || strings.Contains(got, "untracked-canary") {
+		t.Errorf("tracked staged and unstaged diff: %v\n%s", err, got)
+	}
+}
+
+func TestFromDiffCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := FromDiffContext(ctx, "HEAD"); !errors.Is(err, context.Canceled) {
+		t.Errorf("cancelled assembly: %v", err)
+	}
 }
 
 func TestFromDiffNotARepo(t *testing.T) {
@@ -113,5 +157,23 @@ func TestRegistry(t *testing.T) {
 	}
 	if _, err := NewProvider("nope", ""); err == nil || !strings.Contains(err.Error(), "antigravity") {
 		t.Errorf("unknown provider must error naming the registered set, got %v", err)
+	}
+}
+
+// Exercise the real adapter entry points with genuinely absent executables.
+// No fake executable stands in for a provider and no network call is made.
+func TestUnavailableProviderBinaries(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	for _, name := range Providers() {
+		t.Run(name, func(t *testing.T) {
+			p, err := NewProvider(name, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := p.Review(t.Context(), provider.Request{Prompt: "review", Material: "material"})
+			if res != nil || !errors.Is(err, provider.ErrUnavailable) {
+				t.Fatalf("absent binary: result=%+v error=%v", res, err)
+			}
+		})
 	}
 }

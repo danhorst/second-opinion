@@ -18,11 +18,11 @@ The claude adapter SHALL invoke `claude -p` with its process working directory s
 - **THEN** it disables the built-in tool set entirely, so file reads are impossible rather than merely unprompted
 
 ### Requirement: Material is embedded in the prompt
-Because `claude -p` with a prompt argument does not read stdin, the adapter SHALL compose a single instruction from the review prompt and the material in a clearly delimited block, via a pure function so the instruction is reproducible.
+The adapter SHALL compose a single instruction from the review prompt and material in a clearly delimited block via a pure function, and SHALL send it on stdin without a positional prompt argument, avoiding the OS command-line argument limit for material.
 
 #### Scenario: Composed instruction is auditable
 - **WHEN** the adapter executes a review request
-- **THEN** the instruction handed to claude is a deterministic function of the request and contains the material verbatim
+- **THEN** stdin is a deterministic function of the request and contains the material verbatim
 
 ### Requirement: Provenance from the JSON result
 The adapter SHALL request `--output-format json` and extract the findings from the `result` field and the model that ran from `modelUsage`, choosing the dominant entry by output tokens (harness helper models contribute negligible output).
@@ -49,3 +49,21 @@ The adapter SHALL pass the shared conformance suite against the real `claude` bi
 #### Scenario: Real-binary conformance
 - **WHEN** `make test-integration` runs with `claude` on PATH and an authenticated session
 - **THEN** the adapter passes the full conformance suite against the real binary
+
+### Requirement: Validate result envelopes
+The adapter SHALL accept only a result envelope with success subtype, explicit is_error=false, and a present string result as a completed review. It SHALL preserve the result text without whitespace trimming.
+
+#### Scenario: Empty but valid review
+- **WHEN** a valid successful envelope contains an empty result string
+- **THEN** the adapter returns a completed empty review
+
+#### Scenario: Invalid envelope
+- **WHEN** output is null, an unrelated object, lacks result fields, or indicates failure
+- **THEN** the adapter returns an error rather than an empty successful review
+
+### Requirement: Safe-mode invocation
+Claude invocations SHALL disable customizations using safe mode, suppress skills, use strict MCP configuration with no configured servers, and disable session persistence, in addition to disabling tools and setting sources. Authentication SHALL remain available.
+
+#### Scenario: Customizations and MCP servers are configured
+- **WHEN** the adapter constructs an invocation
+- **THEN** safe-mode, skill suppression, strict MCP configuration and no-session-persistence flags are present
