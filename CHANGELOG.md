@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-14
+
 ### Added
 
 - Shared granular application version in `--version` and MCP discovery, with Git build identity and release-stamped source archives.
@@ -23,6 +25,12 @@
 - Required flag values cannot silently consume another flag; output write failures return nonzero.
 - File assembly avoids a material-sized temporary string when checking for whitespace-only input.
 - README and calling-agent instructions distinguish recorded conformance from unverified model identities and document untracked-file exclusions.
+
+### Validation limits
+
+- Released without further live coding-harness testing on this machine. SDK transport tests, race checks, source-archive builds, and Linux/Windows cross-builds passed.
+- Codex passed fresh cold conformance. Codex and Antigravity passed real MCP calls; Antigravity's latest conformance retry timed out, and Claude verification remains blocked by expired OAuth.
+- Existing harness-global isolation and descendant-process limits remain documented in `AGENTS.md` and `docs/reviews/2026-11-14-mcp.md`.
 
 ## [0.1.0] - 2026-07-14
 
