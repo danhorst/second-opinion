@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/danhorst/second-opinion/internal/buildinfo"
 	"github.com/danhorst/second-opinion/internal/provider"
 	"github.com/danhorst/second-opinion/internal/review"
 )
@@ -37,9 +38,11 @@ func usage() string {
   --dry-run        emit the assembled request as JSON; no provider required
   --timeout D      limit the provider call (e.g. 2m); default: unlimited
   --               treat remaining arguments as literal file paths
+  --version         print application version and available build identity
   --list-providers  print the registered provider names and exit
 
 subcommands:
+  mcp serve      serve stateless review tools over stdio or private HTTP
   skill install  install the calling-agent skill for claude/codex harnesses
 
 exit codes: 0 success (review, preview, or discovery); 1 review/output failure;
@@ -136,6 +139,13 @@ func parseArgs(args []string) (config, error) {
 // loopback reference provider.
 func run(ctx context.Context, args []string, getenv func(string) string, stdout, stderr io.Writer,
 	newProvider func(name, model string) (provider.Provider, error)) int {
+
+	if len(args) == 1 && args[0] == "--version" {
+		if _, err := fmt.Fprintln(stdout, buildinfo.Version()); err != nil {
+			return 1
+		}
+		return 0
+	}
 
 	cfg, err := parseArgs(args)
 	if err != nil {
@@ -285,6 +295,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	args := os.Args[1:]
+	if len(args) > 0 && args[0] == "mcp" {
+		os.Exit(runMCP(ctx, args[1:], os.Getenv, os.Stdin, os.Stdout, os.Stderr))
+	}
 	if len(args) > 0 && args[0] == "skill" {
 		home, err := os.UserHomeDir()
 		if err != nil {

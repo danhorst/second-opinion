@@ -1,5 +1,7 @@
 # findings-envelope — design
 
+> Relationship update: stateless MCP uses raw text plus provenance without this parser. The parser design below remains proposed; any future MCP parsed view requires an explicit schema/version decision.
+
 ## Context
 
 `provider.Result` has carried `Findings string` with a comment admitting the structure was undecided, and provenance travelling outside it precisely because the text had no place to hold it.

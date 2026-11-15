@@ -39,7 +39,8 @@ const usageLimitSignature = "usage limit"
 
 // Provider runs reviews through the claude CLI.
 type Provider struct {
-	model string // forced model (alias or full ID); empty means claude's default
+	captureLimits provider.CaptureLimits
+	model         string // forced model (alias or full ID); empty means claude's default
 }
 
 // Option configures a Provider.
@@ -48,6 +49,12 @@ type Option func(*Provider)
 // WithModel forces a model, passed to claude as --model.
 func WithModel(model string) Option {
 	return func(p *Provider) { p.model = model }
+}
+
+// WithCaptureLimits bounds output from every invocation, including fallback.
+// Omitted limits preserve unlimited capture.
+func WithCaptureLimits(limits provider.CaptureLimits) Option {
+	return func(p *Provider) { p.captureLimits = limits }
 }
 
 // New returns a claude-backed Provider.
@@ -151,7 +158,10 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	runErr := process.Run(cmd)
+	runErr := process.Run(cmd, p.captureLimits)
+	if errors.Is(runErr, provider.ErrOutputLimit) {
+		return nil, runErr
+	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, ctxErr
 	}

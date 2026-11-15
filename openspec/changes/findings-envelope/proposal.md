@@ -2,8 +2,8 @@
 
 ## Why
 
-The shape findings take at the engine boundary is the last open question blocking the MCP front-end.
-The CLI can pass raw reviewer text through to stdout because a human reads it; an MCP tool result is consumed by a program, so provenance and individual findings need somewhere to live that is not prose.
+The optional parsed view gives programmatic consumers individually addressable findings.
+The stateless MCP gateway uses raw text plus provenance and does not depend on this parser; this proposal remains an independent, unimplemented enhancement.
 
 ## What Changes
 
@@ -28,7 +28,7 @@ The CLI can pass raw reviewer text through to stdout because a human reads it; a
 
 ## Non-goals
 
-- The MCP front-end. This change settles the shape it consumes; it does not build it.
+- The MCP front-end. The gateway already defines its raw/provenance contract; adopting a parsed view would require a separate schema/version decision.
 - Triage — clustering, deduping, and ranking stay with the calling agent. The open question about where triage lives stays open.
 - A novelty field. The engine has no honest value to put in one, and an empty field invites the caller to fill it in, which is the author-grading-own-homework failure the triage question names.
 - Same-model enforcement.

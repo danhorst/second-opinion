@@ -36,7 +36,8 @@ var authFailureSignatures = []string{
 
 // Provider runs reviews through the antigravity CLI.
 type Provider struct {
-	model string // forced model; empty means agy's default
+	captureLimits provider.CaptureLimits
+	model         string // forced model; empty means agy's default
 }
 
 // Option configures a Provider.
@@ -46,6 +47,12 @@ type Option func(*Provider)
 // agy either honors the name or fails loudly.
 func WithModel(model string) Option {
 	return func(p *Provider) { p.model = model }
+}
+
+// WithCaptureLimits bounds output from every invocation, including fallback.
+// Omitted limits preserve unlimited capture.
+func WithCaptureLimits(limits provider.CaptureLimits) Option {
+	return func(p *Provider) { p.captureLimits = limits }
 }
 
 // New returns an antigravity-backed Provider.
@@ -103,7 +110,10 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := process.Run(cmd); err != nil {
+	if err := process.Run(cmd, p.captureLimits); err != nil {
+		if errors.Is(err, provider.ErrOutputLimit) {
+			return nil, err
+		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
 		}

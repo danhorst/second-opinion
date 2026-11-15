@@ -4,6 +4,11 @@
 
 ### Added
 
+- Shared granular application version in `--version` and MCP discovery, with Git build identity and release-stamped source archives.
+
+- Stateless MCP gateway: `mcp serve` over stdio or authenticated loopback HTTP, with explicit material/provider inputs, versioned raw/provenance outcomes, safe errors, cancellation, and fixed input/output/concurrency budgets.
+- Optional provider capture limits cancel overflowing subprocesses without returning partial findings; gateway tokens are excluded from child environments.
+
 - Harness controls: `--json` for raw findings with full provenance, `--dry-run` for provider-free request inspection, `--timeout` for a shared review/fallback deadline, and `--` for literal paths.
 - Assembly benchmarks and pull-request CI for vet, tests, race checks, and builds.
 

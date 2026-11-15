@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"testing"
 	"time"
+
+	"github.com/danhorst/second-opinion/internal/provider"
 )
 
 // Real subprocesses test OS lifecycle behavior, not a mocked reviewer.
@@ -30,6 +32,9 @@ func TestProcessHelper(t *testing.T) {
 	}
 	if err := os.WriteFile(os.Getenv("SECOND_OPINION_PROCESS_READY"), []byte("ready"), 0o600); err != nil {
 		os.Exit(4)
+	}
+	if mode == "overflow" {
+		_, _ = os.Stdout.Write(bytes.Repeat([]byte("x"), 32768))
 	}
 	if mode == "exit-parent" {
 		os.Exit(0)
@@ -81,5 +86,27 @@ func TestProcessTreeLifecycle(t *testing.T) {
 				t.Fatal("subprocess tree did not terminate promptly")
 			}
 		})
+	}
+}
+
+func TestOverflowCleansInheritedPipes(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestProcessHelper$")
+	cmd.Env = append(os.Environ(), "SECOND_OPINION_PROCESS_TEST=overflow", "SECOND_OPINION_PROCESS_READY="+t.TempDir()+"/ready")
+	var out, diag bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &diag
+	start := time.Now()
+	err := Run(cmd, provider.CaptureLimits{StdoutBytes: 1024, StderrBytes: 1024})
+	if !errors.Is(err, provider.ErrOutputLimit) {
+		t.Fatalf("want output limit: %v", err)
+	}
+	// The descendant holds both pipes open for 30 seconds. Finishing before
+	// WaitDelay proves group cancellation closed those inherited descriptors.
+	if time.Since(start) > time.Second {
+		t.Fatal("overflow left inherited pipes open")
+	}
+	if out.Len() > 1024 || diag.Len() > 1024 {
+		t.Fatal("capture exceeded budget")
 	}
 }

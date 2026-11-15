@@ -37,6 +37,8 @@ children outside the process group and Windows descendant cleanup remain uncover
 The shared Provider suite still checks pre-cancellation: it has no readiness signal to
 prove an arbitrary reviewer is active. These are follow-ups, not conformance exemptions.
 Review quality, completeness, and model obedience cannot be proved by deterministic tests.
+MCP transport and real-provider evidence is recorded in `docs/reviews/2026-11-14-mcp.md`;
+MCP does not strengthen the provider isolation guarantees above.
 
 ## Architecture
 
@@ -46,7 +48,8 @@ Review quality, completeness, and model obedience cannot be proved by determinis
 - `internal/provider/codex` — the codex adapter: explicit context/tool suppression, validated terminal JSONL results, documented provenance degradation for unforced reviews, ChatGPT-auth model fallback.
 - `internal/provider/antigravity` — the antigravity (`agy`) adapter: cwd isolation, prompt-embedded material, documented provenance degradation for unforced reviews.
 - `internal/provider/claude` — the claude adapter: safe mode, tools/settings/skills/MCP suppressed, stdin request transport, validated JSON results and model usage provenance; latest real-binary validation blocked on OAuth.
-- `internal/review` — engine pieces shared by front-ends: the baked adversarial prompt (transport-neutral), target assembly (`FromFiles`, `FromDiff`), the provider registry.
+- `internal/mcpserver` — stateless review/discovery tools, strict schemas, bounded stdio and authenticated loopback HTTP transports; no repository reads, history, or result retrieval.
+- `internal/review` — one-shot executor with fresh provider construction and result validation; engine pieces shared by front-ends: the baked adversarial prompt (transport-neutral), target assembly (`FromFiles`, `FromDiff`), the provider registry.
 - `cmd/second-opinion` — the CLI: text findings or `--json` results, provenance on stderr; `--dry-run` previews requests, `--timeout` bounds provider calls. Exit 0 = operation succeeded, 1 = review/output failure, 2 = usage. `skill install` writes the calling-agent skill per harness.
 - `skills/second-opinion/SKILL.md` — the canonical calling-agent skill (triage discipline), embedded in the binary.
 
@@ -56,7 +59,7 @@ Review quality, completeness, and model obedience cannot be proved by determinis
 - [x] Provider interface and conformance suite — the positive control landed 2026-08-06, so the cold checks no longer pass vacuously against a provider that sends no material.
 - [x] Codex adapter — passes full real-binary conformance including the positive control, 2026-08-06; provenance degradation for unforced reviews verified against the real binary, 2026-08-07.
 - [x] CLI front-end — implemented; `dotfiles/claude/bin/second-opinion.sh` has been retired.
-- [ ] MCP front-end.
+- [x] MCP front-end — stateless stdio and private loopback HTTP; verification and inherited limits in `docs/reviews/2026-11-14-mcp.md`.
 - [x] Antigravity (`agy`) adapter — the 2026-07-10 pass was void, against a suite that could not detect the adapter sending no material; the invocation is fixed and it passes under the positive control, 2026-08-06.
 - [x] Claude adapter — the 2026-07-10 pass was against that same suite; re-verified under the positive control, 2026-08-06.
 - [x] Calling-agent skill, shipped in the binary (`skill install`).

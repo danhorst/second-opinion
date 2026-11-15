@@ -32,7 +32,8 @@ const defaultModelMarker = "codex-default"
 
 // Provider runs reviews through the codex CLI.
 type Provider struct {
-	model string // forced model; empty means codex's default
+	captureLimits provider.CaptureLimits
+	model         string // forced model; empty means codex's default
 }
 
 // Option configures a Provider.
@@ -43,6 +44,12 @@ type Option func(*Provider)
 // reports what actually ran.
 func WithModel(model string) Option {
 	return func(p *Provider) { p.model = model }
+}
+
+// WithCaptureLimits bounds output from every invocation, including fallback.
+// Omitted limits preserve unlimited capture.
+func WithCaptureLimits(limits provider.CaptureLimits) Option {
+	return func(p *Provider) { p.captureLimits = limits }
 }
 
 // New returns a codex-backed Provider.
@@ -90,7 +97,7 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 		return nil, err
 	}
 	res, diag, err := p.run(ctx, req, p.model)
-	if err != nil && p.model != "" && strings.Contains(diag, chatgptModelRejection) {
+	if err != nil && !errors.Is(err, provider.ErrOutputLimit) && p.model != "" && strings.Contains(diag, chatgptModelRejection) {
 		res, _, err = p.run(ctx, req, "")
 	}
 	return res, err
@@ -114,7 +121,10 @@ func (p *Provider) run(ctx context.Context, req provider.Request, model string) 
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := process.Run(cmd); err != nil {
+	if err := process.Run(cmd, p.captureLimits); err != nil {
+		if errors.Is(err, provider.ErrOutputLimit) {
+			return nil, "", err
+		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, stderr.String(), ctxErr
 		}

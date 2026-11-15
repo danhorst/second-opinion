@@ -1,6 +1,6 @@
 ---
 name: second-opinion
-description: Get an adversarial second opinion on a spec, design doc, or diff from a model that did not write it, using the second-opinion CLI. The external model finds; you filter.
+description: Get an adversarial second opinion on a spec, design doc, or diff from a model that did not write it, using the second-opinion CLI or stateless MCP tools. The external model finds; you filter.
 ---
 
 Get an adversarial second opinion on a spec, design doc, or diff from a model that did not write it.
@@ -43,6 +43,18 @@ Check it before triaging: if the model matches the material's author, the review
 1 means review or output failure (cause on stderr: binary missing, auth, usage limit, nothing to review, timeout, or output write failure).
 2 means the invocation was invalid.
 Check status before parsing JSON; a failed operation does not emit a success object. Help and discovery remain text even with `--json`.
+
+## MCP calls
+
+Run `second-opinion mcp serve` as a stdio MCP server. For private HTTP setup and token handling see the repository README; the endpoint is loopback-only and requires a bearer token on every request.
+
+- Discover with `list_providers({})`; registered names are not an availability or authentication guarantee.
+- Call `review` with explicit `provider` and complete `material`. Optional fields are `model`, `prompt` (full replacement), and integer `timeout_ms` (1–300000, default 120000). Environment provider defaults do not apply.
+- Assemble the patch/document and deliberately selected supporting context yourself. Paths and URLs remain text; no workspace reads, roots, previous context, stored results, or result retrieval exist.
+- Preserve `raw`, full `provenance`, and the request receipt. Structured content and the single JSON text block contain the same versioned outcome. No parsed finding list is required. Unknown model markers do not prove reviewer independence.
+- Check `isError` and `kind` before triage. A completed empty review is success. Errors expose a safe `code` and execution status: input errors and `busy` are `not_started`; execution failures are `unknown`.
+- Treat lost/cancelled/timed-out responses as unknown completion. Retrying may repeat paid work; request IDs are not idempotency keys. There is no recovery endpoint or automatic gateway retry.
+- Respect discovery limits: 1 MiB combined UTF-8 material/prompt, 256-byte model, two simultaneous reviews, and bounded transport/output budgets. An overflow fails rather than returning truncated findings. `busy` is not queued work.
 
 ## Triage the output
 

@@ -62,9 +62,9 @@ context: |
     different model of the same family is a valid reviewer. At minimum, findings must carry
     reviewer provenance (provider, model, prompt version) so a violation is detectable after
     the fact.
-  - What shape findings take at the engine boundary — raw reviewer text or a structured
-    envelope. The MCP front-end and the triage question both hang on this. Whatever the
-    shape, provenance must survive it.
+  - Whether to add an optional parsed findings view. The CLI and stateless MCP gateway
+    already preserve authoritative raw text with provenance; MCP does not depend on
+    the pending parser proposal. Parsed views require their own compatibility decision.
 
   ## External dependencies
 
