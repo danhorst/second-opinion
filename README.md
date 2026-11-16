@@ -42,6 +42,7 @@ usage: second-opinion [flags] PATH...
   --list-providers print registered provider names and exit
 
 subcommands:
+  mcp init       initialize the private HTTP service token
   mcp serve      serve stateless MCP tools (stdio or private HTTP)
   skill install  install the calling-agent skill for claude/codex harnesses
 
@@ -106,6 +107,41 @@ second-opinion mcp serve --transport http --listen 127.0.0.1:8765
 ```
 
 Use endpoint `http://127.0.0.1:8765/mcp` and header `Authorization: Bearer <the token>` in the harness's HTTP transport configuration, preferably through its secret/environment facility. Do not commit the token. HTTP requires at least 32 token bytes, literal `127.0.0.1` or `::1` binding, exact Host authority, and no Origin header. It is single-operator loopback serving, not public OAuth hosting. The gateway strips its token from provider child environments. HTTP is stateless with no session persistence or GET event stream; callers cancel by closing the originating request. Header/body reads are bounded to ten seconds, writes to 310 seconds, and idle connections to 30 seconds.
+
+### Homebrew background service (next release)
+
+The formula now includes a per-user service launcher. This packaging is not in the already-published v0.2.0; it becomes available after a release containing it is published and installed. Homebrew's [service block](https://docs.brew.sh/Formula-Cookbook#service-files) handles launchd on macOS and user systemd on Linux.
+
+Initialize the service credential, then start the service:
+
+```bash
+second-opinion mcp init
+brew services start danhorst/tap/second-opinion
+```
+
+`mcp init` creates `~/.config/second-opinion/mcp-token` from 32 cryptographically random bytes, with mode 0600 and private newly created directories. Re-running it validates and preserves an existing token. It never prints the secret, starts a service, or edits harness settings. Insecure or malformed existing files are left untouched with an error. The command supports macOS and Linux, matching the service launcher.
+
+Use `second-opinion mcp init --token-file /absolute/private/path` for a custom location; otherwise `SECOND_OPINION_MCP_TOKEN_FILE` overrides the default. Configure the service manager with that same custom path. There is no implicit token rotation: deliberately replace a token only when ready to update every client and restart the service.
+
+Run as your normal user, without `sudo`. Configure the harness for `http://127.0.0.1:8765/mcp` with `Authorization: Bearer <contents of token file>`, preferably using its secret facility. The token is deployment configuration; the gateway remains stateless. The launcher accepts a 32–4096-character bearer token in a user-owned regular file with mode 0400 or 0600, with at most one trailing newline. It rejects symlinks and never copies the token into the generated plist, service argv, or logs. Existing provider-child token stripping still applies.
+
+```bash
+brew services info danhorst/tap/second-opinion
+brew services restart danhorst/tap/second-opinion
+brew services stop danhorst/tap/second-opinion
+```
+
+The service starts at user login. Automatic crash restart is disabled so a missing token does not cause a restart loop; fix configuration and restart explicitly. Startup diagnostics go to `$(brew --prefix)/var/log/second-opinion.log`. Token changes take effect on restart; update the harness token at the same time.
+
+Provider binaries must be available in the Homebrew/system PATH or `~/.local/bin`, with credentials already configured for that user. Interactive shell profiles and PATH changes are not loaded. For tools installed elsewhere, create a deliberate symlink in `~/.local/bin` or configure the service environment. The launcher supports `SECOND_OPINION_MCP_TOKEN_FILE` and `SECOND_OPINION_MCP_LISTEN` overrides supplied by the service manager; simply exporting them in a terminal does not configure launchd. Listener overrides remain subject to the server's literal-loopback restriction.
+
+To diagnose startup in the foreground after installation:
+
+```bash
+"$(brew --prefix second-opinion)/libexec/second-opinion-mcp-service"
+```
+
+The launcher uses `exec`, so Homebrew stop signals reach the MCP server and its existing bounded shutdown. Starting this background HTTP service does not replace or affect harness-owned stdio servers.
 
 ## Providers
 

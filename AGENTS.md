@@ -39,6 +39,12 @@ prove an arbitrary reviewer is active. These are follow-ups, not conformance exe
 Review quality, completeness, and model obedience cannot be proved by deterministic tests.
 MCP transport and real-provider evidence is recorded in `docs/reviews/2026-11-14-mcp.md`;
 MCP does not strengthen the provider isolation guarantees above.
+`mcp init` filesystem tests cover private creation, existing-token validation, atomic
+concurrent initialization, and secret-free output.
+Homebrew launcher tests cover token-file validation, environment/argv delivery, and
+exit propagation; the generated service metadata is checked with Homebrew. Live
+launchd/systemd lifecycle and provider credentials under a service environment have
+not been verified on this machine.
 
 ## Architecture
 
@@ -66,6 +72,10 @@ MCP does not strengthen the provider isolation guarantees above.
 - [ ] `ollama` adapter (the planned `gemini` adapter was dropped: Google deprecated the Gemini CLI in favor of Antigravity, which the roster already carries).
 
 ## Release
+
+`packaging/homebrew/second-opinion.rb.in` is the canonical formula template;
+`scripts/render-homebrew-formula` stamps the release tag/checksum. The formula installs
+`scripts/second-opinion-mcp-service` as an optional per-user HTTP service launcher.
 
 Added by `bootstrap-release`, Go / github-tarball flavor.
 `scripts/release vX.Y.Z` promotes `## [Unreleased]`, tags, and pushes; GitHub Actions updates `homebrew-tap`.

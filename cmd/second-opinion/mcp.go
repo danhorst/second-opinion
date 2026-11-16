@@ -10,8 +10,12 @@ import (
 )
 
 func runMCP(ctx context.Context, args []string, getenv func(string) string, stdin io.ReadCloser, stdout io.WriteCloser, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "init" {
+		return runMCPInit(args[1:], getenv, stdout, stderr)
+	}
 	if len(args) == 0 || args[0] != "serve" {
 		fmt.Fprintln(stderr, "usage: second-opinion mcp serve [--transport stdio|http] [--listen 127.0.0.1:8765]")
+		fmt.Fprintln(stderr, "       second-opinion mcp init [--token-file PATH]")
 		return 2
 	}
 	fs := flag.NewFlagSet("mcp serve", flag.ContinueOnError)

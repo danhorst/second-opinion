@@ -29,8 +29,7 @@ jobs:
           go-version-file: go.mod
       - name: Verify build and tests
         run: |
-          go vet ./...
-          go test ./...
+          make test
           go build ./...
 
       - name: Parse version
@@ -88,29 +87,7 @@ jobs:
         run: |
           git clone "https://x-access-token:${GH_TOKEN}@github.com/danhorst/homebrew-tap.git" tap
 
-          python3 - <<'PYEOF'
-          import re, os
-
-          formula_path = "tap/Formula/second-opinion.rb"
-          tag      = os.environ["TAG"]
-          src_sha  = os.environ["SOURCE_SHA"]
-
-          text = open(formula_path).read()
-
-          text = re.sub(
-            r'url "https://github\.com/danhorst/second-opinion/archive/refs/tags/v[^"]+"',
-            f'url "https://github.com/danhorst/second-opinion/archive/refs/tags/{tag}.tar.gz"',
-            text,
-          )
-          text = re.sub(
-            r'sha256 "[a-f0-9]+"',
-            f'sha256 "{src_sha}"',
-            text,
-          )
-
-          open(formula_path, "w").write(text)
-          print("Formula updated.")
-          PYEOF
+          scripts/render-homebrew-formula "$TAG" "$SOURCE_SHA" > tap/Formula/second-opinion.rb
 
           git -C tap config user.name "github-actions[bot]"
           git -C tap config user.email "github-actions[bot]@users.noreply.github.com"

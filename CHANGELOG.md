@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- `mcp init` securely creates a private service token, validates and preserves existing credentials, and prints setup steps without revealing the token.
+
+- Homebrew MCP service launcher with private per-user token-file startup, stable installation paths, and a canonical service-enabled formula rendered by release automation.
+
 ## [0.2.0] - 2026-11-14
 
 ### Added

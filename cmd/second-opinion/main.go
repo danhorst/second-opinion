@@ -42,6 +42,7 @@ func usage() string {
   --list-providers  print the registered provider names and exit
 
 subcommands:
+  mcp init       initialize the private HTTP service token
   mcp serve      serve stateless review tools over stdio or private HTTP
   skill install  install the calling-agent skill for claude/codex harnesses
 
