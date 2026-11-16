@@ -1,6 +1,7 @@
 .PHONY: test fmt test-integration test-integration-openai
 
 test:
+	python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 	go vet ./...
 	go test ./...
 

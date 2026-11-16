@@ -19,10 +19,9 @@ func TestCodexConformance(t *testing.T) {
 	})
 }
 
-// Verified against codex-cli 0.149.0-alpha.4.3 on 2026-08-25.
-// Current unforced JSONL events omit model identity, so codex-default is the
-// documented marker for that case.
-func TestCodexProvenance(t *testing.T) {
+// Real runs preserve reported model identity, or the explicit default marker
+// when the installed Codex event schema does not expose it.
+func TestCodexProvenanceUnforced(t *testing.T) {
 	res, err := codex.New().Review(t.Context(), provider.Request{
 		Prompt:   "Reply with the single word OK and nothing else.",
 		Material: "no material",
@@ -32,6 +31,21 @@ func TestCodexProvenance(t *testing.T) {
 	}
 	t.Logf("provider=%s model=%s findings=%q", res.Provenance.Provider, res.Provenance.Model, res.Findings)
 	if res.Provenance.Model == "" {
-		t.Errorf("provenance did not report a model or documented marker: %+v", res.Provenance)
+		t.Error("unforced provenance must contain reported model or default marker")
+	}
+}
+
+// A forced run preserves reported model metadata; requested model is fallback.
+func TestCodexProvenanceForced(t *testing.T) {
+	res, err := codex.New(codex.WithModel("gpt-5.4-mini")).Review(t.Context(), provider.Request{
+		Prompt:   "Reply with the single word OK and nothing else.",
+		Material: "no material",
+	})
+	if err != nil {
+		t.Fatalf("review failed: %v", err)
+	}
+	t.Logf("provider=%s model=%s findings=%q", res.Provenance.Provider, res.Provenance.Model, res.Findings)
+	if res.Provenance.Model == "" {
+		t.Error("forced provenance is missing")
 	}
 }

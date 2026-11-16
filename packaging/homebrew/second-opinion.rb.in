@@ -1,0 +1,44 @@
+# typed: false
+# frozen_string_literal: true
+
+class SecondOpinion < Formula
+  desc "Adversarial second opinion on a document or diff from another model"
+  homepage "https://github.com/danhorst/second-opinion"
+  url "https://github.com/danhorst/second-opinion/archive/refs/tags/@TAG@.tar.gz"
+  sha256 "@SHA256@"
+  license "MIT-0"
+
+  depends_on "go" => :build
+
+  def install
+    system "go", "build", *std_go_args(output: bin/"second-opinion"), "./cmd/second-opinion"
+    libexec.install "scripts/second-opinion-mcp-service"
+  end
+
+  service do
+    run [opt_libexec/"second-opinion-mcp-service"]
+    keep_alive false
+    require_root false
+    environment_variables PATH: std_service_path_env
+    working_dir Dir.home
+    log_path var/"log/second-opinion.log"
+    error_log_path var/"log/second-opinion.log"
+  end
+
+  def caveats
+    <<~EOS
+      Before starting the optional MCP HTTP service, initialize its private token:
+        second-opinion mcp init
+      Existing valid tokens are preserved; the token value is not printed.
+      Run `brew services start second-opinion` without sudo.
+      Endpoint: http://127.0.0.1:8765/mcp (Bearer token required).
+      Configure your harness with the token from that file. Provider CLIs and
+      credentials must be available to the service user without shell startup files.
+    EOS
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/second-opinion --version")
+    assert_predicate libexec/"second-opinion-mcp-service", :executable?
+  end
+end

@@ -20,6 +20,14 @@ type Request struct {
 	Material string
 }
 
+// CaptureLimits bounds each subprocess invocation's captured output. Positive
+// values impose byte limits; zero or negative values leave that stream unlimited.
+// These execution settings are deliberately separate from request content.
+type CaptureLimits struct {
+	StdoutBytes int
+	StderrBytes int
+}
+
 // Provenance identifies who performed a review, so that a
 // reviewer-equals-author violation is detectable after the fact.
 type Provenance struct {
@@ -52,6 +60,7 @@ type Provider interface {
 var (
 	ErrUnavailable = errors.New("provider: reviewer unavailable")
 	ErrAuth        = errors.New("provider: authentication rejected")
+	ErrOutputLimit = errors.New("provider: output capture limit exceeded")
 )
 
 // HashPrompt computes the canonical prompt identity used in Provenance.

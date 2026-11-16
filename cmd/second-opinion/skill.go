@@ -42,12 +42,8 @@ func renderClaude() string {
 	return front + generatedStamp + "\n" + body
 }
 
-// renderCodex strips the frontmatter — codex custom prompts are plain
-// markdown and the filename is the command name.
-func renderCodex() string {
-	_, body := splitFrontmatter(skills.SecondOpinion)
-	return generatedStamp + "\n\n" + strings.TrimLeft(body, "\n")
-}
+// renderCodex installs a native skill with its discovery frontmatter intact.
+func renderCodex() string { return renderClaude() }
 
 // splitFrontmatter separates a leading YAML frontmatter block (--- ... ---)
 // from the body. Without one, front is empty.
@@ -97,7 +93,7 @@ func runSkill(args []string, deps skillDeps, stdout, stderr io.Writer) int {
 		content string
 	}{
 		"claude": {filepath.Join(deps.home, ".claude", "skills", "second-opinion", "SKILL.md"), renderClaude()},
-		"codex":  {filepath.Join(deps.home, ".codex", "prompts", "second-opinion.md"), renderCodex()},
+		"codex":  {filepath.Join(deps.home, ".agents", "skills", "second-opinion", "SKILL.md"), renderCodex()},
 	}
 	names := []string{"claude", "codex"}
 	if harness != "all" {

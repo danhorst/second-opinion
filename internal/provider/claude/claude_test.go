@@ -40,7 +40,17 @@ func TestBuildInvocationColdFlags(t *testing.T) {
 		t.Errorf("no forced model, but argv has --model: %v", argv)
 	}
 
-	instruction := argv[len(argv)-1]
+	instruction := composeInstruction(req)
+	for _, arg := range argv {
+		if strings.Contains(arg, req.Material) {
+			t.Fatal("material leaked into argv")
+		}
+	}
+	for _, flag := range []string{"--safe-mode", "--disable-slash-commands", "--strict-mcp-config", "--no-session-persistence"} {
+		if !slices.Contains(argv, flag) {
+			t.Errorf("missing %s", flag)
+		}
+	}
 	if !strings.HasPrefix(instruction, req.Prompt) || !strings.Contains(instruction, req.Material) {
 		t.Errorf("instruction must carry prompt and material verbatim: %q", instruction)
 	}
@@ -94,6 +104,9 @@ func TestClassify(t *testing.T) {
 	}
 	if err := classify(errors.New("exit status 1"), "Invalid API key. Please run /login"); !errors.Is(err, provider.ErrAuth) {
 		t.Errorf("auth failure must map to ErrAuth, got %v", err)
+	}
+	if err := classify(errors.New("exit status 1"), "Failed to authenticate: OAuth session expired and could not be refreshed"); !errors.Is(err, provider.ErrAuth) {
+		t.Errorf("expired OAuth must map to ErrAuth: %v", err)
 	}
 	if err := classify(errors.New("exit status 1"), "You've reached your usage limit for today"); !errors.Is(err, provider.ErrUnavailable) {
 		t.Errorf("usage limit must map to ErrUnavailable, got %v", err)

@@ -14,30 +14,22 @@ import (
 // registry maps provider names to constructors. Adding an adapter means
 // adding one line. model is the forced model; empty means the provider's
 // default.
-var registry = map[string]func(model string) provider.Provider{
-	"antigravity": func(model string) provider.Provider {
-		if model != "" {
-			return antigravity.New(antigravity.WithModel(model))
-		}
-		return antigravity.New()
+var registry = map[string]func(model string, limits provider.CaptureLimits) provider.Provider{
+	"antigravity": func(model string, limits provider.CaptureLimits) provider.Provider {
+		return antigravity.New(antigravity.WithModel(model), antigravity.WithCaptureLimits(limits))
 	},
-	"claude": func(model string) provider.Provider {
-		if model != "" {
-			return claude.New(claude.WithModel(model))
-		}
-		return claude.New()
+	"claude": func(model string, limits provider.CaptureLimits) provider.Provider {
+		return claude.New(claude.WithModel(model), claude.WithCaptureLimits(limits))
 	},
-	"codex": func(model string) provider.Provider {
-		if model != "" {
-			return codex.New(codex.WithModel(model))
-		}
-		return codex.New()
+	"codex": func(model string, limits provider.CaptureLimits) provider.Provider {
+		return codex.New(codex.WithModel(model), codex.WithCaptureLimits(limits))
 	},
-	"openai-compatible": func(model string) provider.Provider {
+	"openai-compatible": func(model string, limits provider.CaptureLimits) provider.Provider {
+		opts := []openai_compatible.Option{openai_compatible.WithCaptureLimits(limits)}
 		if model != "" {
-			return openai_compatible.New(openai_compatible.WithModel(model))
+			opts = append(opts, openai_compatible.WithModel(model))
 		}
-		return openai_compatible.New()
+		return openai_compatible.New(opts...)
 	},
 }
 
@@ -53,9 +45,15 @@ func Providers() []string {
 
 // NewProvider constructs the named provider with an optional forced model.
 func NewProvider(name, model string) (provider.Provider, error) {
+	return NewProviderWithLimits(name, model, provider.CaptureLimits{})
+}
+
+// NewProviderWithLimits constructs a fresh provider with optional output budgets.
+// Zero limits preserve the unbounded capture behavior of NewProvider.
+func NewProviderWithLimits(name, model string, limits provider.CaptureLimits) (provider.Provider, error) {
 	construct, ok := registry[name]
 	if !ok {
 		return nil, fmt.Errorf("review: unknown provider %q (registered: %v)", name, Providers())
 	}
-	return construct(model), nil
+	return construct(model, limits), nil
 }

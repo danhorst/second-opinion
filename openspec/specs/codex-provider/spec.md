@@ -1,6 +1,10 @@
 # codex-provider
 
-## ADDED Requirements
+## Purpose
+
+The codex adapter's provider-specific requirements: cold invocation, JSONL findings extraction, model provenance under an unstructured harness, auth-aware model fallback, did-not-run classification.
+
+## Requirements
 
 ### Requirement: Codex runs cold by construction
 The codex adapter SHALL invoke `codex exec` from an empty temporary directory with project-document loading suppressed and a read-only, ephemeral sandbox.
@@ -17,12 +21,16 @@ The adapter SHALL pass the prompt as the codex instruction and the material on s
 - **WHEN** the adapter executes a review request
 - **THEN** the material reaches codex verbatim via stdin and no temporary file of the material is left behind
 
-### Requirement: Provenance reflects the codex session
-The adapter SHALL extract the model that actually ran from codex's structured event stream and report it in the result's provenance.
+### Requirement: Provenance under an unstructured harness
+Codex's `--json` event stream carries no model field, on forced or unforced runs alike. When a model is forced, provenance SHALL name it; when none is forced, provenance SHALL carry the documented `codex-default` marker rather than a guess.
 
-#### Scenario: Default model run
+#### Scenario: Forced model
+- **WHEN** a review runs with a forced model
+- **THEN** the result's provenance names that model
+
+#### Scenario: Default model
 - **WHEN** a review runs without a forced model
-- **THEN** provenance names the model codex actually selected, not an empty string or a guess
+- **THEN** the result's provenance reads `codex-default`, a documented degradation, not an invented model name
 
 ### Requirement: Auth-aware model fallback
 When a forced model is rejected because of the active codex authentication (ChatGPT-account auth rejects some models), the adapter SHALL retry once on the provider default and report the substituted model in provenance.
@@ -53,3 +61,25 @@ The adapter SHALL pass the shared conformance suite against the real `codex` bin
 #### Scenario: Real-binary conformance
 - **WHEN** `make test-integration` runs with `codex` on PATH
 - **THEN** the adapter passes the full conformance suite against the real binary
+
+### Requirement: Validate completed transport output
+The adapter SHALL return a result only for well-formed JSONL with a recognized agent message followed by successful terminal completion. Explicit empty message strings SHALL be valid. It SHALL reject malformed, oversized, incomplete, and failed streams and SHALL NOT search arbitrary nested objects for findings.
+
+#### Scenario: Completed empty findings
+- **WHEN** an empty agent message is followed by successful completion
+- **THEN** the adapter returns empty findings and provenance
+
+#### Scenario: Invalid or incomplete stream
+- **WHEN** parsing fails, a turn fails, or successful completion or a recognized message is missing
+- **THEN** the adapter returns an error and no findings result
+
+#### Scenario: Nonfatal item warning
+- **WHEN** a well-formed warning item precedes a completed review
+- **THEN** the warning does not invalidate the successful review
+
+### Requirement: Suppress optional context and tools
+Codex invocations SHALL ignore user configuration and execpolicy rules, suppress host skill discovery, and disable shell execution, code-mode host, local image reading, apps, plugins, memory, multi-agent, skill search, and web search. Authentication SHALL remain available. Unsupported controls SHALL fail rather than retry with weaker isolation.
+
+#### Scenario: User customizations are present
+- **WHEN** an invocation is constructed
+- **THEN** explicit context/tool suppression controls are present in addition to isolated cwd and project-document suppression

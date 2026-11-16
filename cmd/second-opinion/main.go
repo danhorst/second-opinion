@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,25 +14,42 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
+	"unicode/utf8"
 
+	"github.com/danhorst/second-opinion/internal/buildinfo"
 	"github.com/danhorst/second-opinion/internal/provider"
 	"github.com/danhorst/second-opinion/internal/review"
 )
 
-const usage = `usage: second-opinion [flags] PATH...
+// usage renders the registered providers rather than hardcoding them, so
+// adding an adapter updates the help text from the registry alone.
+func usage() string {
+	return fmt.Sprintf(`usage: second-opinion [flags] PATH...
        second-opinion [flags] --diff [BASE]
 
-  PATH...        files to review, concatenated in argument order
-  --diff [BASE]  review the git diff against BASE (default: HEAD)
-  --provider P   reviewer provider; defaults to $SECOND_OPINION_PROVIDER
-  --model M      force a model (provider semantics apply)
-  --prompt-file  replace the baked review prompt with a file's contents
+  PATH...           files to review, concatenated in argument order
+  --diff [BASE]     review the git diff against BASE (default: HEAD)
+  --provider P      reviewer provider (%s)
+                    defaults to $SECOND_OPINION_PROVIDER
+  --model M         force a model (provider semantics apply)
+  --prompt-file F   replace the baked review prompt with a file's contents
+  --json           emit raw findings and full provenance as JSON
+  --dry-run        emit the assembled request as JSON; no provider required
+  --timeout D      limit the provider call (e.g. 2m); default: unlimited
+  --               treat remaining arguments as literal file paths
+  --version         print application version and available build identity
+  --list-providers  print the registered provider names and exit
 
 subcommands:
+  mcp init       initialize the private HTTP service token
+  mcp serve      serve stateless review tools over stdio or private HTTP
   skill install  install the calling-agent skill for claude/codex harnesses
 
-exit codes: 0 review completed; 1 reviewer did not run; 2 usage error
-`
+exit codes: 0 success (review, preview, or discovery); 1 review/output failure;
+            2 usage error
+`, strings.Join(review.Providers(), ", "))
+}
 
 type config struct {
 	provider   string
@@ -41,6 +59,10 @@ type config struct {
 	diffBase   string
 	paths      []string
 	help       bool
+	listProv   bool
+	jsonOutput bool
+	dryRun     bool
+	timeout    time.Duration
 }
 
 // parseArgs is a manual loop because --diff takes an optional value, which
@@ -49,7 +71,7 @@ func parseArgs(args []string) (config, error) {
 	cfg := config{diffBase: "HEAD"}
 	value := func(i *int, name string) (string, error) {
 		*i++
-		if *i >= len(args) {
+		if *i >= len(args) || args[*i] == "" || strings.HasPrefix(args[*i], "-") {
 			return "", fmt.Errorf("%s requires a value", name)
 		}
 		return args[*i], nil
@@ -57,8 +79,26 @@ func parseArgs(args []string) (config, error) {
 	for i := 0; i < len(args); i++ {
 		var err error
 		switch arg := args[i]; arg {
+		case "--":
+			cfg.paths = append(cfg.paths, args[i+1:]...)
+			i = len(args)
 		case "-h", "--help":
 			cfg.help = true
+		case "--list-providers":
+			cfg.listProv = true
+		case "--json":
+			cfg.jsonOutput = true
+		case "--dry-run":
+			cfg.dryRun = true
+		case "--timeout":
+			var duration string
+			duration, err = value(&i, arg)
+			if err == nil {
+				cfg.timeout, err = time.ParseDuration(duration)
+				if err != nil || cfg.timeout <= 0 {
+					err = fmt.Errorf("--timeout requires a positive duration (e.g. 2m)")
+				}
+			}
 		case "--provider":
 			cfg.provider, err = value(&i, arg)
 		case "--model":
@@ -70,6 +110,9 @@ func parseArgs(args []string) (config, error) {
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				cfg.diffBase = args[i]
+				if cfg.diffBase == "" {
+					err = errors.New("--diff requires a nonempty base when supplied")
+				}
 			}
 		default:
 			if strings.HasPrefix(arg, "-") {
@@ -81,7 +124,7 @@ func parseArgs(args []string) (config, error) {
 			return cfg, err
 		}
 	}
-	if cfg.help {
+	if cfg.help || cfg.listProv {
 		return cfg, nil
 	}
 	if cfg.diffMode && len(cfg.paths) > 0 {
@@ -98,28 +141,46 @@ func parseArgs(args []string) (config, error) {
 func run(ctx context.Context, args []string, getenv func(string) string, stdout, stderr io.Writer,
 	newProvider func(name, model string) (provider.Provider, error)) int {
 
-	cfg, err := parseArgs(args)
-	if err != nil {
-		fmt.Fprintf(stderr, "second-opinion: %v\n%s", err, usage)
-		return 2
-	}
-	if cfg.help {
-		fmt.Fprint(stdout, usage)
+	if len(args) == 1 && args[0] == "--version" {
+		if _, err := fmt.Fprintln(stdout, buildinfo.Version()); err != nil {
+			return 1
+		}
 		return 0
 	}
 
-	name := cfg.provider
-	if name == "" {
-		name = getenv("SECOND_OPINION_PROVIDER")
-	}
-	if name == "" {
-		fmt.Fprintf(stderr, "second-opinion: no provider selected — pass --provider or set SECOND_OPINION_PROVIDER (registered: %v)\n", review.Providers())
-		return 2
-	}
-	p, err := newProvider(name, cfg.model)
+	cfg, err := parseArgs(args)
 	if err != nil {
-		fmt.Fprintf(stderr, "second-opinion: %v\n", err)
+		fmt.Fprintf(stderr, "second-opinion: %v\n%s", err, usage())
 		return 2
+	}
+	if cfg.help {
+		fmt.Fprint(stdout, usage())
+		return 0
+	}
+	// Answers a question about the binary, so it runs before target assembly
+	// and provider selection: no target, provider, or repo is required.
+	if cfg.listProv {
+		for _, name := range review.Providers() {
+			fmt.Fprintln(stdout, name)
+		}
+		return 0
+	}
+
+	var p provider.Provider
+	if !cfg.dryRun {
+		name := cfg.provider
+		if name == "" {
+			name = getenv("SECOND_OPINION_PROVIDER")
+		}
+		if name == "" {
+			fmt.Fprintf(stderr, "second-opinion: no provider selected — pass --provider or set SECOND_OPINION_PROVIDER (registered: %v)\n", review.Providers())
+			return 2
+		}
+		p, err = newProvider(name, cfg.model)
+		if err != nil {
+			fmt.Fprintf(stderr, "second-opinion: %v\n", err)
+			return 2
+		}
 	}
 
 	prompt := review.BakedPrompt
@@ -134,11 +195,14 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 
 	var material string
 	if cfg.diffMode {
-		material, err = review.FromDiff(cfg.diffBase)
+		material, err = review.FromDiffContext(ctx, cfg.diffBase)
 	} else {
 		material, err = review.FromFiles(cfg.paths)
 	}
 	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		fmt.Fprintf(stderr, "second-opinion: %v\n", err)
+		return 1
 	case errors.Is(err, review.ErrNothingToReview):
 		fmt.Fprintf(stderr, "second-opinion: %v\n", err)
 		return 1
@@ -147,14 +211,85 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		return 2
 	}
 
-	res, err := p.Review(ctx, provider.Request{Prompt: prompt, Material: material})
+	req := provider.Request{Prompt: prompt, Material: material}
+	if cfg.dryRun {
+		if !utf8.ValidString(req.Prompt) || !utf8.ValidString(req.Material) {
+			fmt.Fprintln(stderr, "second-opinion: JSON preview requires UTF-8 prompt and material")
+			return 2
+		}
+		return writeJSON(stdout, stderr, requestOutput{
+			SchemaVersion: 1, Kind: "request", Prompt: req.Prompt,
+			Material: req.Material, PromptHash: provider.HashPrompt(req.Prompt),
+		})
+	}
+	if cfg.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, cfg.timeout)
+		defer cancel()
+	}
+	res, err := p.Review(ctx, req)
+	if ctx.Err() != nil {
+		err = ctx.Err()
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "second-opinion: reviewer did not run: %v\n", err)
 		return 1
 	}
-	fmt.Fprintln(stdout, res.Findings)
+	if res == nil {
+		fmt.Fprintln(stderr, "second-opinion: provider returned no result")
+		return 1
+	}
 	pv := res.Provenance
-	fmt.Fprintf(stderr, "reviewed-by: provider=%s model=%s prompt=%s\n", pv.Provider, pv.Model, pv.PromptHash[:12])
+	if cfg.jsonOutput {
+		if !utf8.ValidString(res.Findings) || !utf8.ValidString(pv.Provider) || !utf8.ValidString(pv.Model) || !utf8.ValidString(pv.PromptHash) || !utf8.ValidString(pv.MaterialHash) {
+			fmt.Fprintln(stderr, "second-opinion: JSON output requires UTF-8 findings and provenance")
+			return 1
+		}
+		if code := writeJSON(stdout, stderr, reviewOutput{
+			SchemaVersion: 1, Kind: "review", Raw: res.Findings,
+			Provenance: provenanceOutput{pv.Provider, pv.Model, pv.PromptHash, pv.MaterialHash},
+		}); code != 0 {
+			return code
+		}
+	} else if _, err := fmt.Fprintln(stdout, res.Findings); err != nil {
+		fmt.Fprintf(stderr, "second-opinion: writing output: %v\n", err)
+		return 1
+	}
+	if _, err := fmt.Fprintf(stderr, "reviewed-by: provider=%s model=%s prompt=%.12s\n", pv.Provider, pv.Model, pv.PromptHash); err != nil {
+		return 1
+	}
+	return 0
+}
+
+// These versioned CLI wire types are independent of provider internals and
+// the future best-effort findings parser. Raw remains uninterpreted text.
+type provenanceOutput struct {
+	Provider     string `json:"provider"`
+	Model        string `json:"model"`
+	PromptHash   string `json:"prompt_hash"`
+	MaterialHash string `json:"material_hash"`
+}
+
+type reviewOutput struct {
+	SchemaVersion int              `json:"schema_version"`
+	Kind          string           `json:"kind"`
+	Raw           string           `json:"raw"`
+	Provenance    provenanceOutput `json:"provenance"`
+}
+
+type requestOutput struct {
+	SchemaVersion int    `json:"schema_version"`
+	Kind          string `json:"kind"`
+	Prompt        string `json:"prompt"`
+	Material      string `json:"material"`
+	PromptHash    string `json:"prompt_hash"`
+}
+
+func writeJSON(stdout, stderr io.Writer, value any) int {
+	if err := json.NewEncoder(stdout).Encode(value); err != nil {
+		fmt.Fprintf(stderr, "second-opinion: writing output: %v\n", err)
+		return 1
+	}
 	return 0
 }
 
@@ -162,6 +297,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	args := os.Args[1:]
+	if len(args) > 0 && args[0] == "mcp" {
+		os.Exit(runMCP(ctx, args[1:], os.Getenv, os.Stdin, os.Stdout, os.Stderr))
+	}
 	if len(args) > 0 && args[0] == "skill" {
 		home, err := os.UserHomeDir()
 		if err != nil {

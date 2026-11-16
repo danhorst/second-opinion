@@ -1,0 +1,3 @@
+- [x] 1. Implement launcher and canonical Homebrew formula rendering.
+- [x] 2. Test launcher behavior and formula/service metadata.
+- [x] 3. Document setup, update verification limits, sync specs.

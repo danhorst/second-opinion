@@ -1,0 +1,3 @@
+- [x] 1. Implement init and safe credential creation/validation.
+- [x] 2. Test filesystem and command behavior.
+- [x] 3. Update service instructions and sync specs.

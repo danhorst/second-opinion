@@ -1,8 +1,8 @@
 // Package codex implements provider.Provider by shelling out to the codex
-// CLI. Every invocation suppresses implicit context by construction: an empty
-// temp directory, ambient config and rules disabled, project-doc loading
-// suppressed, and a read-only ephemeral sandbox. The read-only sandbox does
-// not provide strict material-only filesystem isolation.
+// CLI. Every invocation suppresses implicit context: an empty temporary
+// directory, ambient config/rules and optional tools disabled, project-document
+// loading suppressed, and a read-only ephemeral sandbox. The sandbox alone does
+// not prove prevention of deliberate filesystem reads.
 package codex
 
 import (
@@ -15,13 +15,10 @@ import (
 	"strings"
 
 	"github.com/danhorst/second-opinion/internal/provider"
+	"github.com/danhorst/second-opinion/internal/provider/process"
 )
 
 const providerName = "codex"
-
-// defaultModelMarker is an explicit provenance degradation: current Codex
-// JSONL success events do not name the model selected for an unforced run.
-const defaultModelMarker = "codex-default"
 
 // chatgptModelRejection is codex's stderr signature for a model the active
 // ChatGPT-account auth does not expose. Held in one constant: if OpenAI
@@ -29,9 +26,15 @@ const defaultModelMarker = "codex-default"
 // silently reviewing on the wrong model.
 const chatgptModelRejection = "not supported when using Codex with a ChatGPT account"
 
+// defaultModelMarker is the documented provenance degradation for unforced
+// reviews when the event stream omits model metadata. Observed binaries have
+// omitted this field; a recognized session model is preserved when present.
+const defaultModelMarker = "codex-default"
+
 // Provider runs reviews through the codex CLI.
 type Provider struct {
-	model string // forced model; empty means codex's default
+	captureLimits provider.CaptureLimits
+	model         string // forced model; empty means codex's default
 }
 
 // Option configures a Provider.
@@ -42,6 +45,12 @@ type Option func(*Provider)
 // reports what actually ran.
 func WithModel(model string) Option {
 	return func(p *Provider) { p.model = model }
+}
+
+// WithCaptureLimits bounds output from every invocation, including fallback.
+// Omitted limits preserve unlimited capture.
+func WithCaptureLimits(limits provider.CaptureLimits) Option {
+	return func(p *Provider) { p.captureLimits = limits }
 }
 
 // New returns a codex-backed Provider.
@@ -58,10 +67,19 @@ func New(opts ...Option) *Provider {
 func buildInvocation(req provider.Request, model, workdir string) (argv []string, stdin string) {
 	argv = []string{
 		"codex", "exec",
+		"--ignore-user-config", "--ignore-rules", "--strict-config",
+		"--disable", "shell_tool",
+		"--disable", "code_mode_host",
+		"--disable", "view_image",
+		"--disable", "apps",
+		"--disable", "plugins",
+		"--disable", "memories",
+		"--disable", "multi_agent",
+		"--disable", "skill_search",
+		"--enable", "skip_host_skill_discovery",
+		"-c", `web_search="disabled"`,
 		"-C", workdir,
 		"-c", "project_doc_max_bytes=0",
-		"--ignore-user-config",
-		"--ignore-rules",
 		"--sandbox", "read-only",
 		"--skip-git-repo-check",
 		"--ephemeral",
@@ -80,7 +98,7 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 		return nil, err
 	}
 	res, diag, err := p.run(ctx, req, p.model)
-	if err != nil && shouldFallback(ctx, p.model, diag) {
+	if err != nil && !errors.Is(err, provider.ErrOutputLimit) && shouldFallback(ctx, p.model, diag) {
 		res, _, err = p.run(ctx, req, "")
 	}
 	return res, err
@@ -108,7 +126,10 @@ func (p *Provider) run(ctx context.Context, req provider.Request, model string) 
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
+	if err := process.Run(cmd, p.captureLimits); err != nil {
+		if errors.Is(err, provider.ErrOutputLimit) {
+			return nil, "", err
+		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, stderr.String(), ctxErr
 		}
@@ -121,17 +142,14 @@ func (p *Provider) run(ctx context.Context, req provider.Request, model string) 
 		return nil, diag, classify(err, diag)
 	}
 
-	ranModel, findings, hasMessage := parseEvents(stdout.Bytes())
-	if !hasMessage {
-		return nil, "", fmt.Errorf("codex: successful response contained no recognized agent message")
+	ranModel, findings, err := parseEvents(stdout.Bytes())
+	if err != nil {
+		return nil, stderr.String(), err
 	}
 	if ranModel == "" {
-		if model == "" {
+		ranModel = model
+		if ranModel == "" {
 			ranModel = defaultModelMarker
-		} else {
-			// A forced model is the only honest fallback when Codex omits the model
-			// event: the command explicitly constrained the session to that model.
-			ranModel = model
 		}
 	}
 	return &provider.Result{
@@ -156,11 +174,10 @@ func classify(err error, diag string) error {
 	if errors.Is(err, exec.ErrNotFound) {
 		return fmt.Errorf("%w: codex binary not found: %v", provider.ErrUnavailable, err)
 	}
-	lower := strings.ToLower(diag)
-	if strings.Contains(lower, usageLimitSignature) {
+	if strings.Contains(diag, usageLimitSignature) {
 		return fmt.Errorf("%w: %s", provider.ErrUnavailable, firstLine(diag))
 	}
-	if strings.Contains(lower, strings.ToLower(chatgptModelRejection)) || strings.Contains(lower, "authentication") || strings.Contains(lower, "unauthorized") || strings.Contains(lower, "not logged in") || strings.Contains(lower, "sign in") {
+	if strings.Contains(diag, chatgptModelRejection) {
 		return fmt.Errorf("%w: %s", provider.ErrAuth, firstLine(diag))
 	}
 	return fmt.Errorf("codex: %w: %s", err, firstLine(diag))

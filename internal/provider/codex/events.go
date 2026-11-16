@@ -4,35 +4,106 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 )
 
-// parseEvents extracts the model that ran and the final agent message from
-// codex's --json event stream. Parsing is defensive: unknown event shapes
-// are skipped, and both the protocol shape ({"msg":{"type":"agent_message",
-// "message":...}}) and the item shapes ({"item":{"item_type":"agent_message",
-// "text":...}} or {"item":{"type":"agent_message","text":...}}) are recognized. The integration test pins the shapes the
-// installed binary actually emits.
-func parseEvents(stream []byte) (model, findings string, hasMessage bool) {
+type messageEvent struct {
+	Type     string  `json:"type"`
+	Model    string  `json:"model"`
+	ItemType string  `json:"item_type"`
+	Message  *string `json:"message"`
+	Text     *string `json:"text"`
+}
+
+type streamEvent struct {
+	Type    string `json:"type"`
+	Model   string `json:"model"`
+	Session *struct {
+		Model string `json:"model"`
+	} `json:"session"`
+	Item *messageEvent `json:"item"`
+	Msg  *messageEvent `json:"msg"`
+}
+
+// parseEvents validates transport completion separately from findings content.
+// Unknown typed events are tolerated, but arbitrary nested messages cannot
+// become findings. Explicit empty messages are valid; missing messages are not.
+func parseEvents(stream []byte) (model, findings string, err error) {
 	sc := bufio.NewScanner(bytes.NewReader(stream))
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	seen, completed := false, false
+	lineNumber := 0
 	for sc.Scan() {
+		lineNumber++
 		line := bytes.TrimSpace(sc.Bytes())
-		if len(line) == 0 || line[0] != '{' {
+		if len(line) == 0 {
 			continue
 		}
-		var event map[string]any
+		var event streamEvent
 		if err := json.Unmarshal(line, &event); err != nil {
-			continue
+			return "", "", fmt.Errorf("codex: malformed JSONL event at line %d", lineNumber)
 		}
-		if model == "" {
-			model = findModel(event)
+		typ := event.Type
+		if typ == "" && event.Msg != nil {
+			typ = event.Msg.Type
 		}
-		if text, ok := agentMessage(event); ok {
-			findings = text // last agent message wins
-			hasMessage = true
+		if typ == "" {
+			return "", "", fmt.Errorf("codex: event at line %d has no type", lineNumber)
+		}
+		// Only session metadata establishes model identity; arbitrary nested
+		// tool payloads and reviewer text must not forge provenance.
+		switch typ {
+		case "session.created", "session_configured", "thread.started":
+			if event.Model != "" {
+				model = event.Model
+			}
+			if event.Session != nil && event.Session.Model != "" {
+				model = event.Session.Model
+			}
+			if event.Msg != nil && event.Msg.Model != "" {
+				model = event.Msg.Model
+			}
+		}
+		var message *messageEvent
+		switch typ {
+		case "error", "turn.failed", "turn_aborted":
+			return "", "", fmt.Errorf("codex: event stream reports %s", typ)
+		case "turn.started", "task_started":
+			seen, completed, findings = false, false, ""
+		case "turn.completed", "task_complete":
+			if !seen {
+				return "", "", fmt.Errorf("codex: completed turn has no agent message")
+			}
+			completed = true
+		case "item.completed":
+			if event.Item != nil && (event.Item.Type == "agent_message" || event.Item.ItemType == "agent_message") {
+				message = event.Item
+			}
+		case "agent_message":
+			// Legacy protocol only: the message must be directly under msg.
+			if event.Msg != nil && event.Msg.Type == "agent_message" {
+				message = event.Msg
+			}
+		}
+		if message != nil {
+			switch {
+			case message.Text != nil:
+				findings = *message.Text
+			case message.Message != nil:
+				findings = *message.Message
+			default:
+				return "", "", fmt.Errorf("codex: agent message has no text")
+			}
+			seen, completed = true, false
 		}
 	}
-	return model, findings, hasMessage
+	if err := sc.Err(); err != nil {
+		return "", "", fmt.Errorf("codex: reading JSONL events: %w", err)
+	}
+	if !seen || !completed {
+		return "", "", fmt.Errorf("codex: incomplete event stream: missing agent message or terminal completion")
+	}
+	return model, findings, nil
 }
 
 // errorEventMessage extracts the message from the first error event in the
@@ -50,90 +121,16 @@ func errorEventMessage(stream []byte) string {
 		if err := json.Unmarshal(line, &event); err != nil {
 			continue
 		}
-		if msg := errorMessage(event, false); msg != "" {
-			return msg
-		}
-	}
-	return ""
-}
-
-func errorMessage(v any, inError bool) string {
-	switch node := v.(type) {
-	case map[string]any:
-		typ, _ := node["type"].(string)
-		if typ == "error" || inError {
-			if msg, ok := node["message"].(string); ok && msg != "" {
+		if typ, _ := event["type"].(string); typ == "error" || typ == "turn.failed" || typ == "turn_aborted" {
+			if msg, ok := event["message"].(string); ok && msg != "" {
 				return msg
 			}
-		}
-		if nested, ok := node["error"]; ok {
-			if msg := errorMessage(nested, true); msg != "" {
-				return msg
-			}
-		}
-		for _, child := range node {
-			if msg := errorMessage(child, inError || typ == "error"); msg != "" {
-				return msg
-			}
-		}
-	case []any:
-		for _, child := range node {
-			if msg := errorMessage(child, inError); msg != "" {
-				return msg
+			if detail, ok := event["error"].(map[string]any); ok {
+				if msg, ok := detail["message"].(string); ok {
+					return msg
+				}
 			}
 		}
 	}
 	return ""
-}
-
-// findModel walks an event for the first string-valued "model" key.
-func findModel(v any) string {
-	switch node := v.(type) {
-	case map[string]any:
-		if m, ok := node["model"].(string); ok && m != "" {
-			return m
-		}
-		for _, child := range node {
-			if m := findModel(child); m != "" {
-				return m
-			}
-		}
-	case []any:
-		for _, child := range node {
-			if m := findModel(child); m != "" {
-				return m
-			}
-		}
-	}
-	return ""
-}
-
-// agentMessage walks an event for an agent-message object and returns its
-// text.
-func agentMessage(v any) (string, bool) {
-	switch node := v.(type) {
-	case map[string]any:
-		typ, _ := node["type"].(string)
-		itemType, _ := node["item_type"].(string)
-		if typ == "agent_message" || itemType == "agent_message" {
-			if s, ok := node["message"].(string); ok {
-				return s, true
-			}
-			if s, ok := node["text"].(string); ok {
-				return s, true
-			}
-		}
-		for _, child := range node {
-			if s, ok := agentMessage(child); ok {
-				return s, ok
-			}
-		}
-	case []any:
-		for _, child := range node {
-			if s, ok := agentMessage(child); ok {
-				return s, ok
-			}
-		}
-	}
-	return "", false
 }

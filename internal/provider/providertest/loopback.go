@@ -18,6 +18,7 @@ type Loopback struct {
 	omitProvenance      bool
 	ignoreCancellation  bool
 	unavailable         bool
+	discardMaterial     bool
 }
 
 // LoopbackOption rigs a Loopback to violate the contract.
@@ -53,6 +54,13 @@ func Unavailable() LoopbackOption {
 	return func(l *Loopback) { l.unavailable = true }
 }
 
+// DiscardMaterial makes the provider ignore the request's material and answer
+// at confident length anyway, imitating an adapter whose harness never
+// received the material — the failure mode non-emptiness cannot detect.
+func DiscardMaterial() LoopbackOption {
+	return func(l *Loopback) { l.discardMaterial = true }
+}
+
 // NewLoopback returns a reference provider, honest unless rigged.
 func NewLoopback(opts ...LoopbackOption) *Loopback {
 	l := &Loopback{}
@@ -62,8 +70,15 @@ func NewLoopback(opts ...LoopbackOption) *Loopback {
 	return l
 }
 
+// discardedAnswer stands in for what a reviewer produces when the material
+// never arrived: fluent, plausible, and about nothing the caller sent.
+const discardedAnswer = "The input appears to be a command-line flag rather than source code. " +
+	"Flags of this kind typically restrict filesystem and network access for the process they are passed to. " +
+	"Without further context I cannot say more about its intended use here."
+
 // Review implements provider.Provider. The honest path sees exactly the
-// request and nothing else, so it finds nothing.
+// request and nothing else, so it finds nothing beyond what it was asked to
+// repeat.
 func (l *Loopback) Review(ctx context.Context, req provider.Request) (*provider.Result, error) {
 	if l.unavailable {
 		return nil, provider.ErrUnavailable
@@ -90,7 +105,16 @@ func (l *Loopback) Review(ctx context.Context, req provider.Request) (*provider.
 		}
 	}
 
-	res := &provider.Result{Findings: strings.Join(leaked, "\n")}
+	// The honest reviewer repeats the canaries it was told to repeat; the
+	// rigged one answers something else entirely, at length.
+	out := leaked
+	if l.discardMaterial {
+		out = append(out, discardedAnswer)
+	} else {
+		out = append(out, canaryTokens(req.Material)...)
+	}
+
+	res := &provider.Result{Findings: strings.Join(out, "\n")}
 	if !l.omitProvenance {
 		res.Provenance = provider.Provenance{
 			Provider:     "loopback",
