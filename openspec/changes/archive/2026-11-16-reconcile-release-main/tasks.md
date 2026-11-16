@@ -1,3 +1,3 @@
 - [x] 1. Reconcile provider, MCP, documentation, and specification conflicts.
 - [x] 2. Add tested main-only and publishing guards, atomic push, and release instructions.
-- [ ] 3. Validate locally and through PR CI; merge preserving released tag ancestry.
+- [x] 3. Validate locally and through PR CI; merge preserving released tag ancestry.
