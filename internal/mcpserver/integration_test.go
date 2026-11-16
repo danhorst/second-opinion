@@ -31,7 +31,7 @@ func TestRealMCPReviews(t *testing.T) {
 				t.Fatal("positive control marker missing")
 			}
 			provenance := value["provenance"].(map[string]any)
-			if provenance["provider"] != p.name || provenance["model"] == "" || provenance["prompt_hash"] != provider.HashPrompt(prompt) {
+			if provenance["provider"] != p.name || provenance["model"] == "" || provenance["prompt_hash"] != provider.HashPrompt(prompt) || provenance["material_hash"] != provider.HashMaterial(material) {
 				t.Fatalf("invalid provenance %+v", provenance)
 			}
 			t.Logf("real MCP positive control passed: provider=%s model=%s", p.name, provenance["model"])

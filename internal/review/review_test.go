@@ -137,7 +137,7 @@ func TestFromDiffNotARepo(t *testing.T) {
 }
 
 func TestRegistry(t *testing.T) {
-	want := []string{"antigravity", "claude", "codex"}
+	want := []string{"antigravity", "claude", "codex", "openai-compatible"}
 	got := Providers()
 	if len(got) != len(want) {
 		t.Fatalf("providers = %v", got)
@@ -164,7 +164,7 @@ func TestRegistry(t *testing.T) {
 // No fake executable stands in for a provider and no network call is made.
 func TestUnavailableProviderBinaries(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
-	for _, name := range Providers() {
+	for _, name := range []string{"antigravity", "claude", "codex"} {
 		t.Run(name, func(t *testing.T) {
 			p, err := NewProvider(name, "")
 			if err != nil {

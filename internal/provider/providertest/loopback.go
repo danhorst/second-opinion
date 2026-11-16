@@ -117,9 +117,10 @@ func (l *Loopback) Review(ctx context.Context, req provider.Request) (*provider.
 	res := &provider.Result{Findings: strings.Join(out, "\n")}
 	if !l.omitProvenance {
 		res.Provenance = provider.Provenance{
-			Provider:   "loopback",
-			Model:      "loopback-1",
-			PromptHash: provider.HashPrompt(req.Prompt),
+			Provider:     "loopback",
+			Model:        "loopback-1",
+			PromptHash:   provider.HashPrompt(req.Prompt),
+			MaterialHash: provider.HashMaterial(req.Material),
 		}
 	}
 	return res, nil

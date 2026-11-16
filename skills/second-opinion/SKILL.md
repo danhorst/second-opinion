@@ -14,7 +14,7 @@ Raw reviewer output is mostly triage overhead — the value is in the filtering,
 - A document: `second-opinion --provider P path/to/SPEC.md [more.md ...]`
 - The current diff: `second-opinion --provider P --diff [BASE]` (BASE defaults to `HEAD`)
 - Override the prompt: `--prompt-file prompt.txt`. Force a model: `--model M`.
-- For harness consumption: add `--json` to get one versioned object with `raw` and `provenance` (`provider`, `model`, full `prompt_hash`). This does not parse or rank findings.
+- For harness consumption: add `--json` to get one versioned object with `raw` and `provenance` (`provider`, `model`, full `prompt_hash` and `material_hash`). This does not parse or rank findings.
 - Inspect input first: `second-opinion --dry-run --diff HEAD` or `--dry-run path/to/SPEC.md`. The JSON contains the exact engine `prompt` and `material`; no provider is needed or constructed, and provider/model selection is ignored. Keep inputs unchanged before the actual review.
 - Bound reviewer latency: `--timeout 2m`. This covers the provider call including fallbacks, after assembly; omission means unlimited. On macOS/Linux/BSD the invocation process group is terminated; detached children are outside this guarantee, and other platforms currently cancel only the parent.
 - Literal filenames: use `--` before paths beginning with a dash.
@@ -30,7 +30,7 @@ Run `second-opinion --list-providers` to see what is registered.
 Some providers reject or substitute forced models depending on their auth; the tool handles the known fallbacks.
 Read the `reviewed-by:` line or JSON provenance before trusting the requested model.
 `codex-default`, `antigravity-default`, and `claude-default` mean the model identity is unknown.
-Codex and Antigravity forced names are requested identities without independent model metadata; Claude uses usage metadata when present, with a requested-name/default-marker fallback.
+Codex uses reported session model metadata when present, with a requested-name/default-marker fallback. Antigravity forced names are requested identities without independent model metadata; Claude uses usage metadata when present, with a requested-name/default-marker fallback.
 Report uncertainty when model independence cannot be established; a different provider alone does not prove a different model.
 
 **Read the output channels.**

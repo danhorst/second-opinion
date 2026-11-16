@@ -93,11 +93,14 @@ func checkContract(ctx context.Context, p provider.Provider) error {
 		return fmt.Errorf("provider returned nil result without error")
 	}
 	pv := res.Provenance
-	if pv.Provider == "" || pv.Model == "" || pv.PromptHash == "" {
+	if pv.Provider == "" || pv.Model == "" || pv.PromptHash == "" || pv.MaterialHash == "" {
 		return fmt.Errorf("provenance incomplete: %+v", pv)
 	}
 	if want := provider.HashPrompt(req.Prompt); pv.PromptHash != want {
 		return fmt.Errorf("prompt hash %q does not identify the prompt that ran (want %q)", pv.PromptHash, want)
+	}
+	if want := provider.HashMaterial(req.Material); pv.MaterialHash != want {
+		return fmt.Errorf("material hash %q does not identify the material that ran (want %q)", pv.MaterialHash, want)
 	}
 	return nil
 }

@@ -18,7 +18,7 @@ func TestSchemasValidateContract(t *testing.T) {
 	}{
 		{"empty", EmptyInputSchema, []any{map[string]any{}}, []any{nil, map[string]any{"x": 1}}},
 		{"input", ReviewInputSchema, []any{map[string]any{"provider": "codex", "material": "x"}, map[string]any{"provider": "claude", "material": "x", "timeout_ms": 300000}}, []any{map[string]any{"provider": "bad", "material": "x"}, map[string]any{"provider": "codex", "material": "x", "unknown": 1}, map[string]any{"provider": "codex", "material": "x", "prompt": nil}}},
-		{"review", ReviewOutputSchema, []any{ReviewOutput{1, "review", "", Provenance{"codex", "model", provider.HashPrompt("p")}, Receipt{provider.HashPrompt("x"), 1, 120000}}, failure}, []any{map[string]any{"schema_version": 1, "kind": "review", "raw": "x"}, map[string]any{"schema_version": 2, "kind": "error", "error": failure.Error}}},
+		{"review", ReviewOutputSchema, []any{ReviewOutput{1, "review", "", Provenance{"codex", "model", provider.HashPrompt("p"), provider.HashMaterial("x")}, Receipt{provider.HashPrompt("x"), 1, 120000}}, failure}, []any{map[string]any{"schema_version": 1, "kind": "review", "raw": "x"}, map[string]any{"schema_version": 2, "kind": "error", "error": failure.Error}}},
 		{"providers", ProvidersOutputSchema, []any{ProvidersOutput{1, "providers", review.Providers(), EffectiveLimits()}, failure}, []any{map[string]any{"schema_version": 1, "kind": "providers", "providers": review.Providers()}}},
 	}
 	for _, tc := range cases {

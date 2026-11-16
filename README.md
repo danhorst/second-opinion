@@ -67,7 +67,7 @@ second-opinion --provider codex --json -- spec.md supporting-file.go
 {"schema_version":1,"kind":"review","raw":"reviewer text","provenance":{"provider":"claude","model":"reported-model-id","prompt_hash":"full SHA-256 hash"}}
 ```
 
-`raw` is the provider-returned text, not a parsed finding list. Read the exit status first: failures have a stderr diagnostic and no success object. The usual stderr provenance line is also emitted in JSON mode. Help and provider discovery retain their text output. JSON output requires UTF-8 text and fails rather than silently replacing invalid bytes.
+`raw` is the provider-returned text, not a parsed finding list. Provenance also includes the full SHA-256 `material_hash`. Read the exit status first: failures have a stderr diagnostic and no success object. The usual stderr provenance line is also emitted in JSON mode. Help and provider discovery retain their text output. JSON output requires UTF-8 text and fails rather than silently replacing invalid bytes.
 
 `--dry-run` emits `schema_version`, `kind: "request"`, `prompt`, `material`, and `prompt_hash`. It requires no provider or credentials and ignores provider/model selection. This is the assembled engine request; adapter delimiters and harness-internal instructions are not included. Preview and execution assemble separate snapshots, so keep inputs unchanged between them.
 
@@ -145,6 +145,8 @@ The launcher uses `exec`, so Homebrew stop signals reach the MCP server and its 
 
 ## Providers
 
+- `openai-compatible` — configurable non-streaming HTTP chat-completions endpoint, including OpenRouter. Set `SECOND_OPINION_API_BASE_URL`, `SECOND_OPINION_API_KEY`, and `SECOND_OPINION_API_MODEL` (or select `--model`). Endpoint credentials and real endpoint conformance are deployment-specific.
+
 - `claude` — sends the composed request on stdin to `claude -p` with safe mode, tools, skills, and settings disabled, strict MCP configuration, and session persistence disabled. Requires support for these controls (inspected in 2.1.234); the current real-binary retest is blocked by expired OAuth.
 - `antigravity` — shells out to `agy --print` from an empty temp directory.
 - `codex` — uses an isolated cwd, ignores user config/rules, suppresses host skills and optional tools/context, and keeps a read-only ephemeral sandbox. Verified with codex-cli 0.167.0-alpha.4.1; stronger conformance including absolute-path isolation passed 2026-11-13. Older binaries missing these controls fail closed.
@@ -153,7 +155,7 @@ Antigravity also passed the absolute-path conformance check on 2026-11-13; that 
 
 Select one with `--provider` or `$SECOND_OPINION_PROVIDER`.
 
-`codex-default` and `antigravity-default` are unknown-model markers, not model identities. Forced names for those adapters reflect the requested model, not independently verified output metadata. Neither establishes that the reviewer differs from the author. Claude uses model usage metadata when available and falls back to a requested name or `claude-default` if it is absent.
+`codex-default` and `antigravity-default` are unknown-model markers, not model identities. Codex prefers reported session model metadata and falls back to the requested name or its default marker. Antigravity forced names reflect the requested model without independently verified output metadata. Neither establishes that the reviewer differs from the author. Claude uses model usage metadata when available and falls back to a requested name or `claude-default` if it is absent.
 
 Ollama and the optional parsed findings envelope remain planned. See the [repository review](docs/reviews/2026-11-13.md) and its [hardening follow-up](docs/reviews/2026-11-13-hardening.md) for remaining gaps and verification limits.
 
@@ -169,3 +171,7 @@ Codex receives a native skill at `~/.agents/skills/second-opinion/SKILL.md`, wit
 [1]: https://brew.sh
 [2]: https://github.com/danhorst/homebrew-tap
 [3]: https://go.dev
+
+## Releasing
+
+Merge and validate changes on `main` before tagging. See [release instructions](docs/releasing.md); the script and publishing workflow both enforce main ancestry.

@@ -69,7 +69,7 @@ func TestResolvePrompt(t *testing.T) {
 }
 
 func TestExecutorResults(t *testing.T) {
-	good := provider.Result{Findings: "  raw ☃\r\n", Provenance: provider.Provenance{Provider: "loopback", Model: "provider-default", PromptHash: provider.HashPrompt(BakedPrompt)}}
+	good := provider.Result{Findings: "  raw ☃\r\n", Provenance: provider.Provenance{Provider: "loopback", Model: "provider-default", PromptHash: provider.HashPrompt(BakedPrompt), MaterialHash: provider.HashMaterial("")}}
 	for _, tc := range []struct {
 		name      string
 		mutate    func(*provider.Result)
@@ -84,6 +84,7 @@ func TestExecutorResults(t *testing.T) {
 		{name: "provider error", nilResult: true, err: provider.ErrUnavailable, wantErr: provider.ErrUnavailable},
 		{name: "missing provider", mutate: func(r *provider.Result) { r.Provenance.Provider = " " }, wantErr: ErrInvalidResult},
 		{name: "missing model", mutate: func(r *provider.Result) { r.Provenance.Model = "" }, wantErr: ErrInvalidResult},
+		{name: "wrong material hash", mutate: func(r *provider.Result) { r.Provenance.MaterialHash = provider.HashMaterial("other") }, wantErr: ErrInvalidResult},
 		{name: "missing hash", mutate: func(r *provider.Result) { r.Provenance.PromptHash = "" }, wantErr: ErrInvalidResult},
 		{name: "wrong hash", mutate: func(r *provider.Result) { r.Provenance.PromptHash = provider.HashPrompt("other") }, wantErr: ErrInvalidResult},
 		{name: "invalid findings", mutate: func(r *provider.Result) { r.Findings = "\xff" }, wantErr: ErrInvalidResult},

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Reconcile the published MCP releases into main while retaining its OpenAI-compatible provider and material/model provenance. MCP and CLI JSON preserve material hashes; configured HTTP output budgets fail without truncation.
+- Release tooling requires clean, synchronized main and atomically pushes the release commit/tag. Publication independently checks tag ancestry and embedded version; source archive downloads fail on HTTP errors.
+
 ## [0.2.1] - 2026-11-16
 
 ### Added

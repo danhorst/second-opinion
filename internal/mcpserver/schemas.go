@@ -44,7 +44,7 @@ func errorSchema() map[string]any {
 var ReviewOutputSchema = map[string]any{"type": "object", "oneOf": []any{
 	objectSchema(map[string]any{
 		"schema_version": constantSchema(1), "kind": constantSchema("review"), "raw": map[string]any{"type": "string"},
-		"provenance": objectSchema(map[string]any{"provider": textSchema(), "model": textSchema(), "prompt_hash": hashSchema()}, "provider", "model", "prompt_hash"),
+		"provenance": objectSchema(map[string]any{"provider": textSchema(), "model": textSchema(), "prompt_hash": hashSchema(), "material_hash": hashSchema()}, "provider", "model", "prompt_hash", "material_hash"),
 		"request":    objectSchema(map[string]any{"material_hash": hashSchema(), "material_bytes": integerSchema(1, MaxInputBytes), "timeout_ms": integerSchema(1, MaxTimeoutMS)}, "material_hash", "material_bytes", "timeout_ms"),
 	}, "schema_version", "kind", "raw", "provenance", "request"),
 	errorSchema(),

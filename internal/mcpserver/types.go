@@ -30,9 +30,10 @@ type ToolError struct {
 }
 
 type Provenance struct {
-	Provider   string `json:"provider"`
-	Model      string `json:"model"`
-	PromptHash string `json:"prompt_hash"`
+	Provider     string `json:"provider"`
+	Model        string `json:"model"`
+	PromptHash   string `json:"prompt_hash"`
+	MaterialHash string `json:"material_hash"`
 }
 
 type Receipt struct {

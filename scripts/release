@@ -17,11 +17,7 @@ VERSION="$1"
 [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Error: version must be vX.Y.Z"; exit 1; }
 
 cd "$REPO_ROOT"
-BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-
-# Ensure working tree is clean (CHANGELOG aside)
-DIRTY=$(git status --porcelain | grep -vE '^.. CHANGELOG\.md' || true)
-[ -n "$DIRTY" ] && { echo "Error: uncommitted changes present"; git status --short; exit 1; }
+"$SCRIPT_DIR/check-release" prepare "$VERSION"
 
 # Ensure [Unreleased] has content to promote
 grep -q '^\#\# \[Unreleased\]' "$CHANGELOG" || { echo "Error: no [Unreleased] section found in CHANGELOG.md"; exit 1; }
@@ -57,7 +53,6 @@ git commit -m "Release $VERSION"
 git tag -a "$VERSION" -m "$VERSION"
 
 # Push — CI creates the release and updates the tap formula
-git push origin "$BRANCH"
-git push origin "$VERSION"
+git push --atomic origin HEAD:refs/heads/main "refs/tags/$VERSION"
 
 echo "Tag pushed. GitHub Actions will create the release and update the tap formula."

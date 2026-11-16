@@ -78,7 +78,7 @@ func TestParseEventsProtocolShape(t *testing.T) {
 {"id":"3","msg":{"type":"agent_message","message":"Finding 1: the loop is off by one."}}
 {"msg":{"type":"task_complete"}}
 `)
-	findings, err := parseEvents(stream)
+	_, findings, err := parseEvents(stream)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestParseEventsItemShape(t *testing.T) {
 {"type":"item.completed","item":{"item_type":"agent_message","text":"Finding: unchecked error."}}
 {"type":"turn.completed"}
 `)
-	findings, err := parseEvents(stream)
+	_, findings, err := parseEvents(stream)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,8 +107,8 @@ func TestParseEventsItemShape(t *testing.T) {
 // turn.completed frame the turn, and completed items (including non-fatal
 // ones, like the code-mode-host warning here) use item.type, not
 // item_type. No event in this stream carries a model field — confirmed on
-// both forced and unforced runs, which is why provenance no longer tries
-// to extract one from JSONL (see defaultModelMarker in codex.go).
+// both forced and unforced runs. When session metadata omits model identity,
+// provenance retains the explicit default marker or requested-model fallback.
 func TestParseEventsRealCapture(t *testing.T) {
 	stream := []byte(`
 {"type":"thread.started","thread_id":"019fddff-7211-70c1-9edf-93e7d1cef25c"}
@@ -117,7 +117,7 @@ func TestParseEventsRealCapture(t *testing.T) {
 {"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"OK"}}
 {"type":"turn.completed","usage":{"input_tokens":13372,"cached_input_tokens":13056,"cache_write_input_tokens":0,"output_tokens":5,"reasoning_output_tokens":0}}
 `)
-	findings, err := parseEvents(stream)
+	_, findings, err := parseEvents(stream)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestClassifyUsageLimit(t *testing.T) {
 }
 
 func TestParseEventsGarbage(t *testing.T) {
-	if _, err := parseEvents([]byte("not json\n")); err == nil {
+	if _, _, err := parseEvents([]byte("not json\n")); err == nil {
 		t.Fatal("garbage must fail")
 	}
 }
@@ -188,5 +188,39 @@ func TestFallbackPredicateOnlyOnSignature(t *testing.T) {
 	}
 	if !strings.Contains("the model `o3` is "+chatgptModelRejection+".", chatgptModelRejection) {
 		t.Error("predicate misses the real signature")
+	}
+}
+
+func TestParseEventsSessionModelProvenance(t *testing.T) {
+	for _, session := range []string{
+		`{"msg":{"type":"session_configured","model":"actual-model"}}`,
+		`{"type":"session.created","session":{"model":"actual-model"}}`,
+	} {
+		model, findings, err := parseEvents([]byte(session + "\n" + `{"type":"item.completed","item":{"type":"agent_message","text":""}}` + "\n" + `{"type":"turn.completed"}`))
+		if err != nil || model != "actual-model" || findings != "" {
+			t.Fatalf("model=%q findings=%q err=%v", model, findings, err)
+		}
+	}
+	model, _, err := parseEvents([]byte(`{"type":"item.completed","item":{"type":"agent_message","text":"OK","model":"forged"}}` + "\n" + `{"type":"turn.completed"}`))
+	if err != nil || model != "" {
+		t.Fatalf("message payload established provenance: %q %v", model, err)
+	}
+}
+
+func TestFallbackHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	if !shouldFallback(ctx, "forced", chatgptModelRejection) {
+		t.Fatal("missing narrow fallback")
+	}
+	cancel()
+	if shouldFallback(ctx, "forced", chatgptModelRejection) {
+		t.Fatal("fallback after cancellation")
+	}
+}
+
+func TestNestedFailureDiagnostic(t *testing.T) {
+	got := errorEventMessage([]byte(`{"type":"turn.failed","error":{"message":"not supported when using Codex with a ChatGPT account"}}`))
+	if !strings.Contains(got, chatgptModelRejection) {
+		t.Fatal("missing nested diagnostic")
 	}
 }

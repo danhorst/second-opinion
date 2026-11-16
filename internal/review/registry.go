@@ -8,6 +8,7 @@ import (
 	"github.com/danhorst/second-opinion/internal/provider/antigravity"
 	"github.com/danhorst/second-opinion/internal/provider/claude"
 	"github.com/danhorst/second-opinion/internal/provider/codex"
+	"github.com/danhorst/second-opinion/internal/provider/openai_compatible"
 )
 
 // registry maps provider names to constructors. Adding an adapter means
@@ -22,6 +23,13 @@ var registry = map[string]func(model string, limits provider.CaptureLimits) prov
 	},
 	"codex": func(model string, limits provider.CaptureLimits) provider.Provider {
 		return codex.New(codex.WithModel(model), codex.WithCaptureLimits(limits))
+	},
+	"openai-compatible": func(model string, limits provider.CaptureLimits) provider.Provider {
+		opts := []openai_compatible.Option{openai_compatible.WithCaptureLimits(limits)}
+		if model != "" {
+			opts = append(opts, openai_compatible.WithModel(model))
+		}
+		return openai_compatible.New(opts...)
 	},
 }
 

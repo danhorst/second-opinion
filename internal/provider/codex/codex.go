@@ -1,6 +1,8 @@
 // Package codex implements provider.Provider by shelling out to the codex
-// CLI. Every invocation runs cold by construction: an empty temp directory,
-// project-doc loading suppressed, and a read-only ephemeral sandbox.
+// CLI. Every invocation suppresses implicit context: an empty temporary
+// directory, ambient config/rules and optional tools disabled, project-document
+// loading suppressed, and a read-only ephemeral sandbox. The sandbox alone does
+// not prove prevention of deliberate filesystem reads.
 package codex
 
 import (
@@ -25,9 +27,8 @@ const providerName = "codex"
 const chatgptModelRejection = "not supported when using Codex with a ChatGPT account"
 
 // defaultModelMarker is the documented provenance degradation for unforced
-// reviews: codex's --json event stream never carries a model field (checked
-// against the real binary on both forced and unforced runs), so an unforced
-// review reports this marker rather than an invented model name.
+// reviews when the event stream omits model metadata. Observed binaries have
+// omitted this field; a recognized session model is preserved when present.
 const defaultModelMarker = "codex-default"
 
 // Provider runs reviews through the codex CLI.
@@ -97,10 +98,14 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 		return nil, err
 	}
 	res, diag, err := p.run(ctx, req, p.model)
-	if err != nil && !errors.Is(err, provider.ErrOutputLimit) && p.model != "" && strings.Contains(diag, chatgptModelRejection) {
+	if err != nil && !errors.Is(err, provider.ErrOutputLimit) && shouldFallback(ctx, p.model, diag) {
 		res, _, err = p.run(ctx, req, "")
 	}
 	return res, err
+}
+
+func shouldFallback(ctx context.Context, model, diag string) bool {
+	return ctx.Err() == nil && model != "" && strings.Contains(diag, chatgptModelRejection)
 }
 
 // run executes one codex invocation and returns the parsed result. The raw
@@ -137,20 +142,23 @@ func (p *Provider) run(ctx context.Context, req provider.Request, model string) 
 		return nil, diag, classify(err, diag)
 	}
 
-	findings, err := parseEvents(stdout.Bytes())
+	ranModel, findings, err := parseEvents(stdout.Bytes())
 	if err != nil {
 		return nil, stderr.String(), err
 	}
-	ranModel := model
 	if ranModel == "" {
-		ranModel = defaultModelMarker
+		ranModel = model
+		if ranModel == "" {
+			ranModel = defaultModelMarker
+		}
 	}
 	return &provider.Result{
 		Findings: findings,
 		Provenance: provider.Provenance{
-			Provider:   providerName,
-			Model:      ranModel,
-			PromptHash: provider.HashPrompt(req.Prompt),
+			Provider:     providerName,
+			Model:        ranModel,
+			PromptHash:   provider.HashPrompt(req.Prompt),
+			MaterialHash: provider.HashMaterial(req.Material),
 		},
 	}, stderr.String(), nil
 }

@@ -24,7 +24,7 @@ func (f testReviewer) Review(ctx context.Context, r provider.Request) (*provider
 	return f(ctx, r)
 }
 func goodResult(r provider.Request) *provider.Result {
-	return &provider.Result{Findings: r.Material, Provenance: provider.Provenance{Provider: "codex", Model: "actual-model", PromptHash: provider.HashPrompt(r.Prompt)}}
+	return &provider.Result{Findings: r.Material, Provenance: provider.Provenance{Provider: "codex", Model: "actual-model", PromptHash: provider.HashPrompt(r.Prompt), MaterialHash: provider.HashMaterial(r.Material)}}
 }
 func sdkSession(t *testing.T, e review.Executor, version string) *mcp.ClientSession {
 	t.Helper()
@@ -125,7 +125,7 @@ func TestSDKExactInputsAndStatelessness(t *testing.T) {
 			}
 			p := v["provenance"].(map[string]any)
 			receipt := v["request"].(map[string]any)
-			if p["prompt_hash"] != provider.HashPrompt(custom) || p["model"] != "actual-model" || receipt["material_hash"] != provider.HashPrompt(material) || receipt["material_bytes"] != float64(len(material)) || receipt["timeout_ms"] != float64(4567) {
+			if p["material_hash"] != provider.HashMaterial(material) || p["prompt_hash"] != provider.HashPrompt(custom) || p["model"] != "actual-model" || receipt["material_hash"] != provider.HashPrompt(material) || receipt["material_bytes"] != float64(len(material)) || receipt["timeout_ms"] != float64(4567) {
 				t.Fatalf("receipt/provenance %+v", v)
 			}
 			v = mirrored(t, callTool(t, cs, "review", map[string]any{"provider": "codex", "material": "B"}))

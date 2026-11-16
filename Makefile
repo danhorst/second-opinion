@@ -1,4 +1,4 @@
-.PHONY: test fmt test-integration
+.PHONY: test fmt test-integration test-integration-openai
 
 test:
 	python3 -m unittest discover -s scripts/tests -p 'test_*.py'
@@ -10,3 +10,7 @@ fmt:
 
 test-integration:
 	go test -tags integration ./...
+
+test-integration-openai:
+	set -a; if [ -f .env ]; then . ./.env; fi; set +a; \
+	GOCACHE="$${GOCACHE:-/tmp/second-opinion-go-cache}" go test -tags integration -run '^TestOpenAICompatibleConformance$$' ./internal/provider/openai_compatible

@@ -68,7 +68,7 @@ func (e Executor) Review(ctx context.Context, req ExecutionRequest) (*provider.R
 		return nil, fmt.Errorf("%w: missing result", ErrInvalidResult)
 	}
 	provenance := result.Provenance
-	if strings.TrimSpace(provenance.Provider) == "" || strings.TrimSpace(provenance.Model) == "" || provenance.PromptHash != provider.HashPrompt(prompt) {
+	if strings.TrimSpace(provenance.Provider) == "" || strings.TrimSpace(provenance.Model) == "" || provenance.PromptHash != provider.HashPrompt(prompt) || provenance.MaterialHash != provider.HashMaterial(req.Material) {
 		return nil, fmt.Errorf("%w: incomplete or inconsistent provenance", ErrInvalidResult)
 	}
 	if !utf8.ValidString(result.Findings) || !utf8.ValidString(provenance.Provider) || !utf8.ValidString(provenance.Model) {

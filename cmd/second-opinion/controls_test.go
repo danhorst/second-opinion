@@ -82,7 +82,7 @@ func TestJSONPreservesRawAndProvenance(t *testing.T) {
 			p := func(string, string) (provider.Provider, error) {
 				return reviewFunc(func(_ context.Context, req provider.Request) (*provider.Result, error) {
 					return &provider.Result{Findings: raw, Provenance: provider.Provenance{
-						Provider: "test", Model: "unknown-default", PromptHash: provider.HashPrompt(req.Prompt),
+						Provider: "test", Model: "unknown-default", PromptHash: provider.HashPrompt(req.Prompt), MaterialHash: provider.HashMaterial(req.Material),
 					}}, nil
 				}), nil
 			}

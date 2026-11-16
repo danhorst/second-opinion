@@ -22,16 +22,16 @@ func TestParseEventsValidation(t *testing.T) {
 		"null":                   "null\n" + message + complete,
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got, err := parseEvents([]byte(stream)); err == nil || got != "" {
+			if _, got, err := parseEvents([]byte(stream)); err == nil || got != "" {
 				t.Fatalf("invalid stream returned %q, %v", got, err)
 			}
 		})
 	}
-	got, err := parseEvents([]byte(message + complete))
+	_, got, err := parseEvents([]byte(message + complete))
 	if err != nil || got != "  result\n" {
 		t.Fatalf("raw text changed: %q %v", got, err)
 	}
-	got, err = parseEvents([]byte(`{"type":"item.completed","item":{"type":"agent_message","text":""}}` + "\n" + complete))
+	_, got, err = parseEvents([]byte(`{"type":"item.completed","item":{"type":"agent_message","text":""}}` + "\n" + complete))
 	if err != nil || got != "" {
 		t.Fatalf("explicit empty message: %q %v", got, err)
 	}

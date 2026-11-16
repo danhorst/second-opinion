@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Run from the repository root. No local file/ref mutations beyond fetching.
+set -euo pipefail
+die() { echo "Release blocked: $*" >&2; exit 1; }
+[[ $# == 2 ]] || die "usage: scripts/check-release prepare|publish vX.Y.Z"
+mode=$1
+tag=$2
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "version must be vX.Y.Z"
+case "$mode" in
+  prepare)
+    [[ $(git symbolic-ref --quiet --short HEAD) == main ]] || die "switch to main and merge the intended work first"
+    [[ -z $(git status --porcelain) ]] || die "commit all changes before release"
+    ;;
+  publish) ;;
+  *) die "unknown check mode" ;;
+esac
+git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+if [[ "$mode" == prepare ]]; then
+  [[ $(git rev-parse HEAD) == $(git rev-parse refs/remotes/origin/main) ]] || die "local main must exactly match origin/main; reconcile and push it first"
+  if git show-ref --verify --quiet "refs/tags/$tag"; then die "tag already exists locally"; fi
+  remote_tag=$(git ls-remote --tags origin "refs/tags/$tag")
+  [[ -z "$remote_tag" ]] || die "tag already exists remotely"
+else
+  commit=$(git rev-parse --verify "refs/tags/$tag^{commit}")
+  [[ $(git rev-parse HEAD) == "$commit" ]] || die "checkout does not match the release tag"
+  git merge-base --is-ancestor "$commit" refs/remotes/origin/main || die "release tag is not on main; merge before publishing"
+  [[ $(cat internal/buildinfo/VERSION) == "${tag#v}" ]] || die "embedded version does not match tag"
+fi

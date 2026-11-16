@@ -70,7 +70,7 @@ func NewServer(executor review.Executor) *mcp.Server {
 		if len(value.Findings) > MaxRawBytes {
 			return executionFailure(provider.ErrOutputLimit), nil
 		}
-		return toolResult(ReviewOutput{1, "review", value.Findings, Provenance{value.Provenance.Provider, value.Provenance.Model, value.Provenance.PromptHash}, Receipt{provider.HashPrompt(in.Material), len(in.Material), in.TimeoutMS}}, false), nil
+		return toolResult(ReviewOutput{1, "review", value.Findings, Provenance{value.Provenance.Provider, value.Provenance.Model, value.Provenance.PromptHash, value.Provenance.MaterialHash}, Receipt{provider.HashMaterial(in.Material), len(in.Material), in.TimeoutMS}}, false), nil
 	})
 	return s
 }

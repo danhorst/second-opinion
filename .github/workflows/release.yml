@@ -23,6 +23,12 @@ jobs:
           # Pin to the tag on both trigger paths — a workflow_dispatch checkout
           # of branch HEAD may predate the release commit, yielding empty notes.
           ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Require release tag on main
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: scripts/check-release publish "$RELEASE_TAG"
 
       - uses: actions/setup-go@v6
         with:
@@ -34,12 +40,9 @@ jobs:
 
       - name: Parse version
         id: version
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${GITHUB_REF_NAME}"
-          fi
           BARE="${TAG#v}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "bare=$BARE" >> "$GITHUB_OUTPUT"
@@ -64,7 +67,8 @@ jobs:
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           URL="https://github.com/danhorst/second-opinion/archive/refs/tags/${TAG}.tar.gz"
-          SHA=$(curl -sL "$URL" | sha256sum | cut -d' ' -f1)
+          curl --fail --location --retry 3 "$URL" -o /tmp/second-opinion-source.tar.gz
+          SHA=$(sha256sum /tmp/second-opinion-source.tar.gz | cut -d' ' -f1)
           echo "source=$SHA" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release

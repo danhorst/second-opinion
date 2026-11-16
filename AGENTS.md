@@ -48,10 +48,11 @@ not been verified on this machine.
 
 ## Architecture
 
-- `internal/provider` — the `Provider` contract: `Request` (prompt + material by value), `Result` (findings + provenance), sentinel errors, `HashPrompt`.
+- `internal/provider` — the `Provider` contract: `Request` (prompt + material by value), `Result` (findings + provenance), sentinel errors, `HashPrompt`, and `HashMaterial`.
 - `internal/provider/process` — shared subprocess group cleanup, bounded output drain, and actionable OS argument-limit errors.
 - `internal/provider/providertest` — the shared conformance suite (`Conform`) and the `Loopback` reference provider that validates it.
 - `internal/provider/codex` — the codex adapter: explicit context/tool suppression, validated terminal JSONL results, documented provenance degradation for unforced reviews, ChatGPT-auth model fallback.
+- `internal/provider/openai_compatible` — configurable HTTP adapter for OpenAI-compatible endpoints; endpoint integration requires configured credentials.
 - `internal/provider/antigravity` — the antigravity (`agy`) adapter: cwd isolation, prompt-embedded material, documented provenance degradation for unforced reviews.
 - `internal/provider/claude` — the claude adapter: safe mode, tools/settings/skills/MCP suppressed, stdin request transport, validated JSON results and model usage provenance; latest real-binary validation blocked on OAuth.
 - `internal/mcpserver` — stateless review/discovery tools, strict schemas, bounded stdio and authenticated loopback HTTP transports; no repository reads, history, or result retrieval.
@@ -69,6 +70,7 @@ not been verified on this machine.
 - [x] Antigravity (`agy`) adapter — the 2026-07-10 pass was void, against a suite that could not detect the adapter sending no material; the invocation is fixed and it passes under the positive control, 2026-08-06.
 - [x] Claude adapter — the 2026-07-10 pass was against that same suite; re-verified under the positive control, 2026-08-06.
 - [x] Calling-agent skill, shipped in the binary (`skill install`).
+- [ ] OpenAI-compatible endpoint certification — implemented; configured endpoint verification remains required.
 - [ ] `ollama` adapter (the planned `gemini` adapter was dropped: Google deprecated the Gemini CLI in favor of Antigravity, which the roster already carries).
 
 ## Release
@@ -78,4 +80,9 @@ not been verified on this machine.
 `scripts/second-opinion-mcp-service` as an optional per-user HTTP service launcher.
 
 Added by `bootstrap-release`, Go / github-tarball flavor.
-`scripts/release vX.Y.Z` promotes `## [Unreleased]`, tags, and pushes; GitHub Actions updates `homebrew-tap`.
+Release only from clean `main` exactly matching freshly fetched `origin/main`. Merge and
+validate feature work before running `scripts/release vX.Y.Z`; the script checks this
+before modifying anything and atomically pushes the release commit and tag. The
+publishing workflow independently rejects tags outside main history or with a mismatched
+embedded version. Never release directly from a feature branch or move a published tag.
+See `docs/releasing.md` for the complete procedure and failure recovery.

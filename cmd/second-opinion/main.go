@@ -241,13 +241,13 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	}
 	pv := res.Provenance
 	if cfg.jsonOutput {
-		if !utf8.ValidString(res.Findings) || !utf8.ValidString(pv.Provider) || !utf8.ValidString(pv.Model) || !utf8.ValidString(pv.PromptHash) {
+		if !utf8.ValidString(res.Findings) || !utf8.ValidString(pv.Provider) || !utf8.ValidString(pv.Model) || !utf8.ValidString(pv.PromptHash) || !utf8.ValidString(pv.MaterialHash) {
 			fmt.Fprintln(stderr, "second-opinion: JSON output requires UTF-8 findings and provenance")
 			return 1
 		}
 		if code := writeJSON(stdout, stderr, reviewOutput{
 			SchemaVersion: 1, Kind: "review", Raw: res.Findings,
-			Provenance: provenanceOutput{pv.Provider, pv.Model, pv.PromptHash},
+			Provenance: provenanceOutput{pv.Provider, pv.Model, pv.PromptHash, pv.MaterialHash},
 		}); code != 0 {
 			return code
 		}
@@ -264,9 +264,10 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 // These versioned CLI wire types are independent of provider internals and
 // the future best-effort findings parser. Raw remains uninterpreted text.
 type provenanceOutput struct {
-	Provider   string `json:"provider"`
-	Model      string `json:"model"`
-	PromptHash string `json:"prompt_hash"`
+	Provider     string `json:"provider"`
+	Model        string `json:"model"`
+	PromptHash   string `json:"prompt_hash"`
+	MaterialHash string `json:"material_hash"`
 }
 
 type reviewOutput struct {
