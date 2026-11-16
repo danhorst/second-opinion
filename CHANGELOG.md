@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-16
+
 ### Added
 
 - `mcp init` securely creates a private service token, validates and preserves existing credentials, and prints setup steps without revealing the token.
