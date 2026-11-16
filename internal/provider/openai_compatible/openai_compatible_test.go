@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"github.com/danhorst/second-opinion/internal/provider"
-	"github.com/danhorst/second-opinion/internal/provider/providertest"
 )
 
-func TestLocalEndpointConformance(t *testing.T) {
+// Local endpoint fixtures exercise HTTP mechanics, not model conformance.
+func TestLocalEndpointTransport(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer fixture-key" {
 			t.Errorf("authorization = %q", r.Header.Get("Authorization"))
@@ -23,9 +23,11 @@ func TestLocalEndpointConformance(t *testing.T) {
 	}))
 	defer server.Close()
 
-	providertest.Conform(t, func(t *testing.T) provider.Provider {
-		return New(WithBaseURL(server.URL), WithAPIKey("fixture-key"), WithModel("fixture-model"), WithHTTPClient(server.Client()))
-	})
+	result, err := New(WithBaseURL(server.URL), WithAPIKey("fixture-key"), WithModel("fixture-model"), WithHTTPClient(server.Client())).Review(t.Context(), provider.Request{Prompt: "p", Material: "m"})
+	if err != nil || result == nil || result.Findings != "NONE" {
+		t.Fatalf("result=%+v error=%v", result, err)
+	}
+
 }
 
 func TestReviewRequestShapeAndProvenance(t *testing.T) {
@@ -205,4 +207,26 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 	return f(r)
+}
+
+func TestResponseCaptureBudget(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusBadGateway} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			body := `{"model":"actual","choices":[{"message":{"content":"` + strings.Repeat("x", 5000) + `"}}]}`
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(status); _, _ = w.Write([]byte(body)) }))
+			defer server.Close()
+			p := New(WithBaseURL(server.URL), WithAPIKey("key"), WithModel("model"), WithCaptureLimits(provider.CaptureLimits{StdoutBytes: 128, StderrBytes: 128}))
+			result, err := p.Review(t.Context(), provider.Request{Prompt: "p", Material: "m"})
+			if result != nil || !errors.Is(err, provider.ErrOutputLimit) {
+				t.Fatalf("overflow result=%v error=%v", result, err)
+			}
+			if status == http.StatusOK {
+				p = New(WithBaseURL(server.URL), WithAPIKey("key"), WithModel("model"))
+				result, err = p.Review(t.Context(), provider.Request{Prompt: "p", Material: "m"})
+				if err != nil || len(result.Findings) != 5000 {
+					t.Fatalf("success exceeded diagnostic-only budget: %v", err)
+				}
+			}
+		})
+	}
 }

@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/danhorst/second-opinion/internal/provider"
+	"github.com/danhorst/second-opinion/internal/provider/process"
 )
 
 const providerName = "antigravity"
@@ -35,7 +36,8 @@ var authFailureSignatures = []string{
 
 // Provider runs reviews through the antigravity CLI.
 type Provider struct {
-	model string // forced model; empty means agy's default
+	captureLimits provider.CaptureLimits
+	model         string // forced model; empty means agy's default
 }
 
 // Option configures a Provider.
@@ -45,6 +47,12 @@ type Option func(*Provider)
 // agy either honors the name or fails loudly.
 func WithModel(model string) Option {
 	return func(p *Provider) { p.model = model }
+}
+
+// WithCaptureLimits bounds output from every invocation, including fallback.
+// Omitted limits preserve unlimited capture.
+func WithCaptureLimits(limits provider.CaptureLimits) Option {
+	return func(p *Provider) { p.captureLimits = limits }
 }
 
 // New returns an antigravity-backed Provider.
@@ -70,12 +78,16 @@ func composeInstruction(req provider.Request) string {
 // invocation is testable without executing agy. Isolation comes from the
 // caller running the process with its working directory set to workdir;
 // there is no stdin.
+//
+// --print takes the prompt as its value rather than acting as a boolean, so
+// the instruction must immediately follow it. Any flag placed between the two
+// is consumed as the prompt and the material is silently never sent.
 func buildInvocation(req provider.Request, model string) (argv []string) {
-	argv = []string{"agy", "--print", "--sandbox"}
+	argv = []string{"agy", "--sandbox"}
 	if model != "" {
 		argv = append(argv, "--model", model)
 	}
-	argv = append(argv, composeInstruction(req))
+	argv = append(argv, "--print", composeInstruction(req))
 	return argv
 }
 
@@ -98,7 +110,10 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
+	if err := process.Run(cmd, p.captureLimits); err != nil {
+		if errors.Is(err, provider.ErrOutputLimit) {
+			return nil, err
+		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
 		}

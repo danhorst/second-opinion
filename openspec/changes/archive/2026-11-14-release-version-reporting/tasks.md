@@ -1,0 +1,3 @@
+- [x] 1. Add shared version reporting, CLI flag, and release stamping.
+- [x] 2. Test metadata, run regression validation, and inspect built artifact.
+- [x] 3. Sync specifications and archive.

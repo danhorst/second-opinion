@@ -17,18 +17,20 @@ import (
 )
 
 const (
-	providerName       = "openai-compatible"
-	defaultBaseURL     = "https://api.openai.com/v1"
-	unknownModelMarker = "openai-compatible-model-unknown"
-	maxDiagnosticBytes = 4096
+	providerName         = "openai-compatible"
+	defaultBaseURL       = "https://api.openai.com/v1"
+	unknownModelMarker   = "openai-compatible-model-unknown"
+	maxDiagnosticBytes   = 4096
+	defaultResponseBytes = 8 << 20
 )
 
 // Provider reviews through an OpenAI-compatible HTTP endpoint.
 type Provider struct {
-	baseURL string
-	apiKey  string
-	model   string
-	client  *http.Client
+	captureLimits provider.CaptureLimits
+	baseURL       string
+	apiKey        string
+	model         string
+	client        *http.Client
 }
 
 // Option configures a Provider.
@@ -47,6 +49,12 @@ func WithAPIKey(apiKey string) Option {
 // WithModel overrides the configured model.
 func WithModel(model string) Option {
 	return func(p *Provider) { p.model = model }
+}
+
+// WithCaptureLimits bounds the HTTP response: StdoutBytes for success and
+// StderrBytes for an error response. Zero uses the adapter's existing defaults.
+func WithCaptureLimits(limits provider.CaptureLimits) Option {
+	return func(p *Provider) { p.captureLimits = limits }
 }
 
 // WithHTTPClient injects an HTTP client, primarily for transport tests.
@@ -136,14 +144,30 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxDiagnosticBytes+1))
+	success := resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices
+	budget := defaultResponseBytes
+	configured := p.captureLimits.StdoutBytes
+	if !success {
+		budget = maxDiagnosticBytes
+		configured = p.captureLimits.StderrBytes
+	}
+	if configured > 0 {
+		budget = configured
+	}
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, int64(budget)+1))
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return nil, fmt.Errorf("openai-compatible: reading response: %w", err)
 	}
-	if len(responseBody) > maxDiagnosticBytes {
-		responseBody = responseBody[:maxDiagnosticBytes]
+	if len(responseBody) > budget {
+		if success || configured > 0 {
+			return nil, provider.ErrOutputLimit
+		}
+		responseBody = responseBody[:budget] // bounded legacy error diagnostics
 	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+	if !success {
 		return nil, classifyStatus(resp.StatusCode, responseBody)
 	}
 

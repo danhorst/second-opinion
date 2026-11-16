@@ -14,8 +14,25 @@ The suite SHALL be the same code for every adapter — an adapter cannot pass a 
 - **WHEN** a new adapter package is added
 - **THEN** it passes by invoking the shared suite against its own constructor, with no adapter-specific assertions about the contract
 
+### Requirement: Conformance proves the material reaches the reviewer
+The suite SHALL include a positive control: it plants a distinctive canary token in the material and asserts the reviewer's output reflects that token.
+An adapter that discards, truncates, or fails to transmit the material MUST fail this check, even when the reviewer returns confident, non-empty output.
+
+#### Scenario: Material reaches the reviewer
+- **WHEN** the suite runs a review whose material contains a canary token and instructs the reviewer to repeat it
+- **THEN** the reviewer's output contains that token
+
+#### Scenario: Adapter that sends no material fails
+- **WHEN** the suite runs against a reference provider rigged to discard the request's material and return unrelated non-empty output
+- **THEN** the positive control fails
+
+#### Scenario: Non-emptiness is not sufficient
+- **WHEN** a provider returns output that is non-empty but unrelated to the material
+- **THEN** the positive control fails, because output length and presence are not evidence of transmission
+
 ### Requirement: Conformance proves the cold-reviewer guarantee
 The suite SHALL verify that the reviewer receives nothing the caller did not explicitly assemble into the request — no project instruction files auto-loaded from the working directory, no access to the caller's repository, no session history.
+These checks SHALL be reported as meaningful only when the positive control passes: a reviewer that received no material trivially satisfies every negative assertion, so a cold result without a passing positive control MUST NOT be reported as a pass.
 
 #### Scenario: Reviewer cannot see project instruction files
 - **WHEN** the suite runs a review from a directory containing an instruction file the provider's tooling would auto-load (for example `AGENTS.md`)
@@ -24,6 +41,10 @@ The suite SHALL verify that the reviewer receives nothing the caller did not exp
 #### Scenario: Reviewer cannot read the caller's repository
 - **WHEN** the suite runs a review of material referencing files that exist in the caller's repository but were not included in the material
 - **THEN** the reviewer provably cannot read those files
+
+#### Scenario: Cold results are not reported beneath a failing positive control
+- **WHEN** the positive control fails for an adapter
+- **THEN** the suite reports that the cold checks are inconclusive rather than passing, so a milestone cannot cite a green result
 
 ### Requirement: Conformance verifies the interface contract
 The suite SHALL exercise the contract requirements of `provider-interface`: provenance present and truthful, ran/did-not-run mutually exclusive, and cancellation honored.
@@ -66,3 +87,14 @@ Because global-context locations are harness-specific and the shared suite canno
 #### Scenario: Harness without global context
 - **WHEN** an adapter's harness has no user-level context mechanism
 - **THEN** the adapter documents that fact where its cold behavior is described, so the absence is a recorded decision rather than an unexamined gap
+
+### Requirement: Absolute-path cold evidence
+The shared suite SHALL check that a reviewer cannot read a caller-owned file referenced by its absolute path but not included in material. The check SHALL be gated by the same positive control as relative-path and instruction-file checks. Invalid nil results SHALL fail checks rather than panic.
+
+#### Scenario: Relative isolation is insufficient
+- **WHEN** a reviewer can read an absolute-path canary despite an isolated working directory
+- **THEN** the absolute-path cold check fails even if the relative-path check passes
+
+#### Scenario: Failed positive control
+- **WHEN** material delivery has not passed the positive control
+- **THEN** the absolute-path check is inconclusive and not reported as passing

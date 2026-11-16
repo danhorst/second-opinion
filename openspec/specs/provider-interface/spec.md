@@ -60,3 +60,35 @@ Every review SHALL accept a context, and a provider MUST abandon work and return
 #### Scenario: Caller cancels a slow review
 - **WHEN** the caller cancels the context while a review is in flight
 - **THEN** the provider returns a cancellation error without waiting for the reviewer to finish
+
+### Requirement: Subprocess cleanup and bounded output drain
+Subprocess adapters SHALL terminate their invocation process group on cancellation and completion on Darwin, Linux, and BSD. They SHALL bound waits for inherited output pipes to two seconds after cancellation or parent exit. On other platforms they SHALL document parent-only cancellation. Detached descendants outside the invocation group are not covered.
+
+#### Scenario: Child holds output open
+- **WHEN** a provider parent exits or is cancelled while descendants retain output pipes
+- **THEN** the caller does not wait indefinitely for those pipes and supported-platform group members are terminated
+
+### Requirement: Actionable argument-size errors
+When an OS rejects provider arguments as too large, the adapter SHALL explain that material must be reduced without including material or secrets in the error, and SHALL preserve the underlying error.
+
+#### Scenario: Oversized command arguments
+- **WHEN** starting an argument-based provider fails with the OS argument-limit error
+- **THEN** the result is an error with actionable size guidance and no completed review
+
+### Requirement: Optional execution output budgets
+Provider construction SHALL support optional stdout/stderr capture budgets without adding non-content fields to the review request. When configured, every subprocess invocation including fallback SHALL enforce the budgets, cancel work on overflow, and return a distinguishable output-limit error without a completed or truncated result. Omitted limits SHALL preserve existing CLI behavior.
+
+#### Scenario: Budgeted invocation overflows
+- **WHEN** provider stdout or stderr exceeds its configured capture budget
+- **THEN** execution is cancelled, readers are cleaned up, and an output-limit error is returned without findings
+
+#### Scenario: Existing CLI caller
+- **WHEN** a provider is constructed without execution output budgets
+- **THEN** existing CLI output behavior is unchanged
+
+### Requirement: HTTP response budgets
+HTTP providers SHALL honor configured output budgets for success and error response bodies and return the output-limit sentinel without partial success when exceeded. Success body limits SHALL be separate from diagnostic truncation limits.
+
+#### Scenario: Reconciled execution
+- **WHEN** a request uses the shared executor and configured output budgets
+- **THEN** input material identity is preserved and excessive output fails explicitly

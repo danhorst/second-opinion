@@ -54,10 +54,44 @@ func TestConformCatchesViolations(t *testing.T) {
 			}
 		})
 	}
+	// A provider that discards the material answers at confident length, so
+	// non-emptiness cannot catch it. The positive control can.
+	t.Run("discarded-material", func(t *testing.T) {
+		p := NewLoopback(DiscardMaterial())
+		res, err := p.Review(t.Context(), provider.Request{Prompt: "p", Material: "m"})
+		if err != nil {
+			t.Fatalf("rigged provider must still run: %v", err)
+		}
+		if res.Findings == "" {
+			t.Fatal("rig must return non-empty output, or it proves nothing about non-emptiness")
+		}
+		controlErr := checkPositiveControl(t, p)
+		if controlErr == nil || !strings.Contains(controlErr.Error(), "positive control failed") {
+			t.Fatalf("expected positive control failure, got %v", controlErr)
+		}
+
+		// The vacuous pass this change exists to catch: a provider that sent
+		// nothing satisfies the cold check outright. The gate is what stops
+		// that from being reported as a pass.
+		if err := checkInstructionFileCold(t, p); err != nil {
+			t.Errorf("expected the cold check to pass vacuously beneath a failed control, got %v", err)
+		}
+		if inconclusiveReason(controlErr) == "" {
+			t.Error("a failed positive control must make cold results inconclusive")
+		}
+		if inconclusiveReason(nil) != "" {
+			t.Error("a passing positive control must leave cold results standing on their own")
+		}
+	})
 	t.Run("repo-read", func(t *testing.T) {
 		err := checkRepoReadCold(t, NewLoopback(ReadReferencedFiles()))
 		if err == nil || !strings.Contains(err.Error(), "cold-reviewer violation") {
 			t.Errorf("expected cold-reviewer violation, got %v", err)
+		}
+	})
+	t.Run("absolute-repo-read", func(t *testing.T) {
+		if err := checkAbsoluteRepoReadCold(t, NewLoopback(ReadReferencedFiles())); err == nil || !strings.Contains(err.Error(), "absolute-path") {
+			t.Fatalf("expected absolute-path leak failure: %v", err)
 		}
 	})
 	t.Run("omitted-provenance", func(t *testing.T) {
@@ -72,6 +106,27 @@ func TestConformCatchesViolations(t *testing.T) {
 			t.Errorf("expected cancellation failure, got %v", err)
 		}
 	})
+}
+
+type nilProvider struct{}
+
+func (nilProvider) Review(context.Context, provider.Request) (*provider.Result, error) {
+	return nil, nil
+}
+
+func TestNilResultsFailWithoutPanicking(t *testing.T) {
+	checks := []func() error{
+		func() error { return checkContract(t.Context(), nilProvider{}) },
+		func() error { return checkPositiveControl(t, nilProvider{}) },
+		func() error { return checkInstructionFileCold(t, nilProvider{}) },
+		func() error { return checkRepoReadCold(t, nilProvider{}) },
+		func() error { return checkAbsoluteRepoReadCold(t, nilProvider{}) },
+	}
+	for _, check := range checks {
+		if err := check(); err == nil {
+			t.Fatal("nil result passed conformance")
+		}
+	}
 }
 
 // Did-not-run yields an error and no result; ran-and-found-nothing yields a

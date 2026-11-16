@@ -1,6 +1,8 @@
 package review
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -23,7 +25,7 @@ func FromFiles(paths []string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("review: %w", err)
 		}
-		if len(strings.TrimSpace(string(content))) > 0 {
+		if len(bytes.TrimSpace(content)) > 0 {
 			empty = false
 		}
 		fmt.Fprintf(&b, "=== %s ===\n%s\n", path, content)
@@ -38,8 +40,24 @@ func FromFiles(paths []string) (string, error) {
 // Assembly runs in the caller's working directory — the caller's explicit
 // act, which is what the nothing-implicit invariant permits.
 func FromDiff(base string) (string, error) {
-	out, err := exec.Command("git", "diff", base).Output()
+	return FromDiffContext(context.Background(), base)
+}
+
+// FromDiffContext assembles a built-in, uncolored patch without invoking
+// external diff or textconv helpers. The trailing -- makes base a revision,
+// never a path; rejecting leading dashes prevents option injection.
+func FromDiffContext(ctx context.Context, base string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if base == "" || strings.HasPrefix(base, "-") {
+		return "", fmt.Errorf("review: invalid diff base %q", base)
+	}
+	out, err := exec.CommandContext(ctx, "git", "diff", "--no-ext-diff", "--no-textconv", "--no-color", base, "--").Output()
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			return "", fmt.Errorf("review: git diff %s: %s", base, strings.TrimSpace(string(exitErr.Stderr)))

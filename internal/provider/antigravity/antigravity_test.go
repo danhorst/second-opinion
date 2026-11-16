@@ -11,6 +11,22 @@ import (
 	"github.com/danhorst/second-opinion/internal/provider"
 )
 
+// printValue returns the argument agy would consume as the prompt, which is
+// the one immediately following --print. Asserting on this rather than on
+// flag presence is the point: an invocation can carry every required flag and
+// still hand agy a flag name as the prompt.
+func printValue(t *testing.T, argv []string) string {
+	t.Helper()
+	i := slices.Index(argv, "--print")
+	if i < 0 {
+		t.Fatalf("argv missing --print: %v", argv)
+	}
+	if i == len(argv)-1 {
+		t.Fatalf("--print has no value: %v", argv)
+	}
+	return argv[i+1]
+}
+
 func TestBuildInvocationColdShape(t *testing.T) {
 	req := provider.Request{Prompt: "find flaws", Material: "diff content"}
 	argv := buildInvocation(req, "")
@@ -18,10 +34,8 @@ func TestBuildInvocationColdShape(t *testing.T) {
 	if argv[0] != "agy" {
 		t.Errorf("binary = %q", argv[0])
 	}
-	for _, flag := range []string{"--print", "--sandbox"} {
-		if !slices.Contains(argv, flag) {
-			t.Errorf("argv missing %s: %v", flag, argv)
-		}
+	if !slices.Contains(argv, "--sandbox") {
+		t.Errorf("argv missing --sandbox: %v", argv)
 	}
 	for _, forbidden := range []string{"--add-dir", "--dangerously-skip-permissions"} {
 		if slices.Contains(argv, forbidden) {
@@ -32,7 +46,10 @@ func TestBuildInvocationColdShape(t *testing.T) {
 		t.Errorf("no forced model, but argv has --model: %v", argv)
 	}
 
-	instruction := argv[len(argv)-1]
+	instruction := printValue(t, argv)
+	if instruction != composeInstruction(req) {
+		t.Errorf("--print must consume the composed instruction, got %q", instruction)
+	}
 	if !strings.HasPrefix(instruction, req.Prompt) {
 		t.Errorf("instruction must start with the prompt: %q", instruction)
 	}
@@ -45,10 +62,18 @@ func TestBuildInvocationColdShape(t *testing.T) {
 }
 
 func TestBuildInvocationForcedModel(t *testing.T) {
-	argv := buildInvocation(provider.Request{Prompt: "p"}, "Gemini 3.1 Pro (High)")
+	req := provider.Request{Prompt: "p", Material: "m"}
+	argv := buildInvocation(req, "Gemini 3.1 Pro (High)")
+
 	i := slices.Index(argv, "--model")
 	if i < 0 || argv[i+1] != "Gemini 3.1 Pro (High)" {
-		t.Errorf("forced model missing from argv: %v", argv)
+		t.Fatalf("forced model missing from argv: %v", argv)
+	}
+	if p := slices.Index(argv, "--print"); i > p {
+		t.Errorf("--model must precede --print, or agy consumes it as the prompt: %v", argv)
+	}
+	if instruction := printValue(t, argv); instruction != composeInstruction(req) {
+		t.Errorf("forced model displaced the instruction: --print consumed %q", instruction)
 	}
 }
 

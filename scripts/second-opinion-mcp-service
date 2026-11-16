@@ -1,0 +1,30 @@
+#!/bin/bash
+# Foreground Homebrew service launcher. Never source user shell configuration.
+set -eu
+export LC_ALL=C
+fail() { printf "second-opinion service: %s\n" "$1" >&2; exit 1; }
+uid=$(/usr/bin/id -u)
+[ "$uid" != 0 ] || fail "run brew services as your normal user, without sudo"
+[ -n "${HOME:-}" ] || fail "HOME is required"
+[ "$#" = 0 ] || fail "configure startup through the documented environment variables"
+token_file=${SECOND_OPINION_MCP_TOKEN_FILE:-$HOME/.config/second-opinion/mcp-token}
+[ -f "$token_file" ] && [ ! -L "$token_file" ] && [ -r "$token_file" ] || fail "a readable regular, nonsymlink token file is required"
+case $(/usr/bin/uname -s) in
+  Darwin) metadata=$(/usr/bin/stat -f "%Lp %u %z" "$token_file" 2>/dev/null) || fail "cannot inspect token file" ;;
+  Linux) metadata=$(/usr/bin/stat -c "%a %u %s" "$token_file" 2>/dev/null) || fail "cannot inspect token file" ;;
+  *) fail "unsupported service platform" ;;
+esac
+read -r mode owner size <<< "$metadata"
+[ "$owner" = "$uid" ] || fail "token file must be owned by the service user"
+case $mode in 400|600) ;; *) fail "token file permissions must be 0400 or 0600" ;; esac
+[ "$size" -ge 32 ] && [ "$size" -le 4097 ] || fail "token file must contain 32 to 4096 token characters"
+# Read one bounded regular file line; allow only one optional trailing LF.
+token=""
+IFS= read -r token < "$token_file" || [ -n "$token" ] || fail "empty token"
+[ "${#token}" -ge 32 ] && [ "${#token}" -le 4096 ] || fail "token length must be 32 to 4096 characters"
+case $token in *[!a-zA-Z0-9._~+/=-]*) fail "token must contain only bearer-token characters" ;; esac
+/usr/bin/cmp -s "$token_file" <(printf "%s" "$token") || /usr/bin/cmp -s "$token_file" <(printf "%s\n" "$token") || fail "token must be a single line"
+export SECOND_OPINION_MCP_TOKEN="$token"
+# Homebrew supplies its bin/sbin and system paths; common per-user tools live here.
+export PATH="$HOME/.local/bin:${PATH:-/usr/bin:/bin}"
+exec "$(dirname "$0")/../bin/second-opinion" mcp serve --transport http --listen "${SECOND_OPINION_MCP_LISTEN:-127.0.0.1:8765}"
