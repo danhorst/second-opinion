@@ -8,6 +8,11 @@
 
 - Homebrew MCP service launcher with private per-user token-file startup, stable installation paths, and a canonical service-enabled formula rendered by release automation.
 
+### Validation limits
+
+- Launcher and token initialization tests, generated Homebrew service metadata, and regression tests passed. Live launchd/systemd and coding-harness validation remain unverified on this machine.
+- Provider verification limits from v0.2.0 still apply; this release changes setup and packaging, not provider isolation.
+
 ## [0.2.0] - 2026-11-14
 
 ### Added

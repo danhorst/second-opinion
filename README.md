@@ -75,7 +75,7 @@ second-opinion --provider codex --json -- spec.md supporting-file.go
 
 Diff mode includes tracked staged and unstaged changes against the base, **not untracked files**. Use file mode for new files and deliberately selected supporting context. Git color, external diff, and text conversion are disabled. Use `--` for filenames beginning with a dash; for a prompt-file value use a path such as `./-prompt.txt`.
 
-Application version is shared by `--version` and MCP discovery. Development builds currently use `0.2.0-dev`, with available Git revision and dirty-state metadata. `scripts/release vX.Y.Z` stamps the selected version into source archives; protocol and JSON schema versions remain separate.
+Application version is shared by `--version` and MCP discovery. Git checkout builds include available revision and dirty-state metadata. `scripts/release vX.Y.Z` stamps the selected version into source archives; protocol and JSON schema versions remain separate.
 
 ### Stateless MCP
 
@@ -108,9 +108,9 @@ second-opinion mcp serve --transport http --listen 127.0.0.1:8765
 
 Use endpoint `http://127.0.0.1:8765/mcp` and header `Authorization: Bearer <the token>` in the harness's HTTP transport configuration, preferably through its secret/environment facility. Do not commit the token. HTTP requires at least 32 token bytes, literal `127.0.0.1` or `::1` binding, exact Host authority, and no Origin header. It is single-operator loopback serving, not public OAuth hosting. The gateway strips its token from provider child environments. HTTP is stateless with no session persistence or GET event stream; callers cancel by closing the originating request. Header/body reads are bounded to ten seconds, writes to 310 seconds, and idle connections to 30 seconds.
 
-### Homebrew background service (next release)
+### Homebrew background service
 
-The formula now includes a per-user service launcher. This packaging is not in the already-published v0.2.0; it becomes available after a release containing it is published and installed. Homebrew's [service block](https://docs.brew.sh/Formula-Cookbook#service-files) handles launchd on macOS and user systemd on Linux.
+Starting with v0.2.1, the formula includes a per-user service launcher and `mcp init` token setup. Homebrew's [service block](https://docs.brew.sh/Formula-Cookbook#service-files) handles launchd on macOS and user systemd on Linux.
 
 Initialize the service credential, then start the service:
 
