@@ -14,23 +14,28 @@ import (
 // registry maps provider names to constructors. Adding an adapter means
 // adding one line. model is the forced model; empty means the provider's
 // default.
-var registry = map[string]func(model string, limits provider.CaptureLimits) provider.Provider{
-	"antigravity": func(model string, limits provider.CaptureLimits) provider.Provider {
+type registration struct {
+	construct func(model string, limits provider.CaptureLimits) provider.Provider
+	isolation provider.Isolation
+}
+
+var registry = map[string]registration{
+	"antigravity": {construct: func(model string, limits provider.CaptureLimits) provider.Provider {
 		return antigravity.New(antigravity.WithModel(model), antigravity.WithCaptureLimits(limits))
-	},
-	"claude": func(model string, limits provider.CaptureLimits) provider.Provider {
+	}},
+	"claude": {construct: func(model string, limits provider.CaptureLimits) provider.Provider {
 		return claude.New(claude.WithModel(model), claude.WithCaptureLimits(limits))
-	},
-	"codex": func(model string, limits provider.CaptureLimits) provider.Provider {
+	}},
+	"codex": {construct: func(model string, limits provider.CaptureLimits) provider.Provider {
 		return codex.New(codex.WithModel(model), codex.WithCaptureLimits(limits))
-	},
-	"openai-compatible": func(model string, limits provider.CaptureLimits) provider.Provider {
+	}},
+	"openai-compatible": {isolation: provider.IsolationLocalMaterialOnly, construct: func(model string, limits provider.CaptureLimits) provider.Provider {
 		opts := []openai_compatible.Option{openai_compatible.WithCaptureLimits(limits)}
 		if model != "" {
 			opts = append(opts, openai_compatible.WithModel(model))
 		}
 		return openai_compatible.New(opts...)
-	},
+	}},
 }
 
 // Providers returns the registered provider names, sorted.
@@ -41,6 +46,20 @@ func Providers() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// ProviderIsolation reports local adapter capabilities without executing reviews
+// or reading endpoint credentials. Execution checks the constructed provider
+// independently; discovery metadata cannot authorize execution.
+func ProviderIsolation() map[string]provider.Isolation {
+	levels := make(map[string]provider.Isolation, len(registry))
+	for name, entry := range registry {
+		levels[name] = provider.IsolationUnverified
+		if entry.isolation == provider.IsolationLocalMaterialOnly {
+			levels[name] = entry.isolation
+		}
+	}
+	return levels
 }
 
 // NewProvider constructs the named provider with an optional forced model.
@@ -55,5 +74,5 @@ func NewProviderWithLimits(name, model string, limits provider.CaptureLimits) (p
 	if !ok {
 		return nil, fmt.Errorf("review: unknown provider %q (registered: %v)", name, Providers())
 	}
-	return construct(model, limits), nil
+	return construct.construct(model, limits), nil
 }

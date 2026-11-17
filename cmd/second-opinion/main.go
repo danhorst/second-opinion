@@ -33,13 +33,15 @@ func usage() string {
   --provider P      reviewer provider (%s)
                     defaults to $SECOND_OPINION_PROVIDER
   --model M         force a model (provider semantics apply)
+  --require-isolation local-material-only
+                    require a client material boundary; endpoint remains trusted
   --prompt-file F   replace the baked review prompt with a file's contents
   --json           emit raw findings and full provenance as JSON
   --dry-run        emit the assembled request as JSON; no provider required
   --timeout D      limit the provider call (e.g. 2m); default: unlimited
   --               treat remaining arguments as literal file paths
   --version         print application version and available build identity
-  --list-providers  print the registered provider names and exit
+  --list-providers  print registered names; with --json include local isolation
 
 subcommands:
   mcp install    register MCP with Codex, Claude Code, or Antigravity
@@ -56,17 +58,18 @@ exit codes: 0 success (review, preview, or discovery); 1 review/output failure;
 }
 
 type config struct {
-	provider   string
-	model      string
-	promptFile string
-	diffMode   bool
-	diffBase   string
-	paths      []string
-	help       bool
-	listProv   bool
-	jsonOutput bool
-	dryRun     bool
-	timeout    time.Duration
+	requireIsolation provider.Isolation
+	provider         string
+	model            string
+	promptFile       string
+	diffMode         bool
+	diffBase         string
+	paths            []string
+	help             bool
+	listProv         bool
+	jsonOutput       bool
+	dryRun           bool
+	timeout          time.Duration
 }
 
 // parseArgs is a manual loop because --diff takes an optional value, which
@@ -105,6 +108,13 @@ func parseArgs(args []string) (config, error) {
 			}
 		case "--provider":
 			cfg.provider, err = value(&i, arg)
+		case "--require-isolation":
+			var level string
+			level, err = value(&i, arg)
+			if err == nil && level != string(provider.IsolationLocalMaterialOnly) {
+				err = errors.New("--require-isolation requires local-material-only")
+			}
+			cfg.requireIsolation = provider.Isolation(level)
 		case "--model":
 			cfg.model, err = value(&i, arg)
 		case "--prompt-file":
@@ -164,6 +174,9 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	// Answers a question about the binary, so it runs before target assembly
 	// and provider selection: no target, provider, or repo is required.
 	if cfg.listProv {
+		if cfg.jsonOutput {
+			return writeJSON(stdout, stderr, map[string]any{"schema_version": 1, "kind": "providers", "providers": review.Providers(), "provider_isolation": review.ProviderIsolation()})
+		}
 		for _, name := range review.Providers() {
 			fmt.Fprintln(stdout, name)
 		}
@@ -223,7 +236,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		}
 		return writeJSON(stdout, stderr, requestOutput{
 			SchemaVersion: 1, Kind: "request", Prompt: req.Prompt,
-			Material: req.Material, PromptHash: provider.HashPrompt(req.Prompt),
+			Material: req.Material, PromptHash: provider.HashPrompt(req.Prompt), RequireIsolation: cfg.requireIsolation,
 		})
 	}
 	if cfg.timeout > 0 {
@@ -231,7 +244,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		ctx, cancel = context.WithTimeout(ctx, cfg.timeout)
 		defer cancel()
 	}
-	res, err := p.Review(ctx, req)
+	res, err := provider.ReviewWithIsolation(ctx, p, req, cfg.requireIsolation)
 	if ctx.Err() != nil {
 		err = ctx.Err()
 	}
@@ -250,7 +263,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 			return 1
 		}
 		if code := writeJSON(stdout, stderr, reviewOutput{
-			SchemaVersion: 1, Kind: "review", Raw: res.Findings,
+			SchemaVersion: 1, Kind: "review", Raw: res.Findings, Isolation: res.Isolation,
 			Provenance: provenanceOutput{pv.Provider, pv.Model, pv.PromptHash, pv.MaterialHash},
 		}); code != 0 {
 			return code
@@ -259,7 +272,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		fmt.Fprintf(stderr, "second-opinion: writing output: %v\n", err)
 		return 1
 	}
-	if _, err := fmt.Fprintf(stderr, "reviewed-by: provider=%s model=%s prompt=%.12s\n", pv.Provider, pv.Model, pv.PromptHash); err != nil {
+	if _, err := fmt.Fprintf(stderr, "reviewed-by: provider=%s model=%s prompt=%.12s isolation=%s\n", pv.Provider, pv.Model, pv.PromptHash, res.Isolation); err != nil {
 		return 1
 	}
 	return 0
@@ -275,18 +288,20 @@ type provenanceOutput struct {
 }
 
 type reviewOutput struct {
-	SchemaVersion int              `json:"schema_version"`
-	Kind          string           `json:"kind"`
-	Raw           string           `json:"raw"`
-	Provenance    provenanceOutput `json:"provenance"`
+	Isolation     provider.Isolation `json:"isolation"`
+	SchemaVersion int                `json:"schema_version"`
+	Kind          string             `json:"kind"`
+	Raw           string             `json:"raw"`
+	Provenance    provenanceOutput   `json:"provenance"`
 }
 
 type requestOutput struct {
-	SchemaVersion int    `json:"schema_version"`
-	Kind          string `json:"kind"`
-	Prompt        string `json:"prompt"`
-	Material      string `json:"material"`
-	PromptHash    string `json:"prompt_hash"`
+	RequireIsolation provider.Isolation `json:"require_isolation,omitempty"`
+	SchemaVersion    int                `json:"schema_version"`
+	Kind             string             `json:"kind"`
+	Prompt           string             `json:"prompt"`
+	Material         string             `json:"material"`
+	PromptHash       string             `json:"prompt_hash"`
 }
 
 func writeJSON(stdout, stderr io.Writer, value any) int {

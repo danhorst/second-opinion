@@ -145,3 +145,15 @@ func TestExecutorFactoryErrors(t *testing.T) {
 		t.Fatalf("unknown registry provider = %+v, %v", result, err)
 	}
 }
+
+func TestDiscoveryIsolationMatchesConstructedProviders(t *testing.T) {
+	for name, level := range ProviderIsolation() {
+		p, err := NewProvider(name, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if actual := provider.EffectiveIsolation(p); actual != level {
+			t.Errorf("%s discovery=%s actual=%s", name, level, actual)
+		}
+	}
+}

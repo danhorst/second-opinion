@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/danhorst/second-opinion/internal/provider"
 	"github.com/danhorst/second-opinion/internal/review"
 )
 
@@ -136,6 +137,10 @@ func ParseReviewInput(raw json.RawMessage) (ReviewInput, *ToolError) {
 				in.Model = s
 			case "prompt":
 				in.Prompt = &s
+			}
+		case "require_isolation":
+			if json.Unmarshal(value, &in.RequireIsolation) != nil || in.RequireIsolation != provider.IsolationLocalMaterialOnly {
+				return ReviewInput{}, invalidInput()
 			}
 		case "timeout_ms":
 			if json.Unmarshal(value, &in.TimeoutMS) != nil || in.TimeoutMS < 1 || in.TimeoutMS > MaxTimeoutMS || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {

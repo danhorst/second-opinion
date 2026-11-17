@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+
+- Require `local-material-only` isolation through CLI or MCP; unsupported providers fail before review without fallback.
+- Report effective local isolation in review results and provider discovery, including `--list-providers --json`.
+
+### Fixed
+
+- OpenAI-compatible reviews reject HTTP redirects and tool/function-call responses instead of following or accepting them as findings.
+
+### Validation limits
+
+- The local material boundary covers client mechanics only. Endpoints and HTTP transports remain trusted; CLI harnesses report `unverified`.
+- Policy, local HTTP, CLI/MCP, and schema tests passed. Live endpoint conformance remains unverified without configured credentials/model.
+
 ## [0.3.0] - 2026-11-16
 
 ### Added

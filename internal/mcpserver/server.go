@@ -39,7 +39,7 @@ func NewServer(executor review.Executor) *mcp.Server {
 		if err := ValidateEmptyInput(req.Params.Arguments); err != nil {
 			return toolFailure(*err), nil
 		}
-		return toolResult(ProvidersOutput{1, "providers", review.Providers(), EffectiveLimits()}, false), nil
+		return toolResult(ProvidersOutput{review.ProviderIsolation(), 1, "providers", review.Providers(), EffectiveLimits()}, false), nil
 	})
 	s.AddTool(&mcp.Tool{Name: "review", Description: "Review complete material supplied by value. Material may leave this machine and incur cost. Select a model different from the author; default model markers do not establish independence. No workspace reads, stored results, or automatic retries.", InputSchema: ReviewInputSchema, OutputSchema: ReviewOutputSchema, Annotations: &mcp.ToolAnnotations{DestructiveHint: &no, OpenWorldHint: &yes}}, func(ctx context.Context, req *mcp.CallToolRequest) (result *mcp.CallToolResult, err error) {
 		defer func() {
@@ -60,7 +60,7 @@ func NewServer(executor review.Executor) *mcp.Server {
 		}
 		ctx, cancel := context.WithTimeout(ctx, time.Duration(in.TimeoutMS)*time.Millisecond)
 		defer cancel()
-		value, callErr := executor.Review(ctx, review.ExecutionRequest{Provider: in.Provider, Model: in.Model, Material: in.Material, Prompt: in.Prompt, CaptureLimits: provider.CaptureLimits{StdoutBytes: MaxStdoutBytes, StderrBytes: MaxStderrBytes}})
+		value, callErr := executor.Review(ctx, review.ExecutionRequest{Provider: in.Provider, Model: in.Model, RequireIsolation: in.RequireIsolation, Material: in.Material, Prompt: in.Prompt, CaptureLimits: provider.CaptureLimits{StdoutBytes: MaxStdoutBytes, StderrBytes: MaxStderrBytes}})
 		if callErr != nil {
 			return executionFailure(callErr), nil
 		}
@@ -70,7 +70,7 @@ func NewServer(executor review.Executor) *mcp.Server {
 		if len(value.Findings) > MaxRawBytes {
 			return executionFailure(provider.ErrOutputLimit), nil
 		}
-		return toolResult(ReviewOutput{1, "review", value.Findings, Provenance{value.Provenance.Provider, value.Provenance.Model, value.Provenance.PromptHash, value.Provenance.MaterialHash}, Receipt{provider.HashMaterial(in.Material), len(in.Material), in.TimeoutMS}}, false), nil
+		return toolResult(ReviewOutput{value.Isolation, 1, "review", value.Findings, Provenance{value.Provenance.Provider, value.Provenance.Model, value.Provenance.PromptHash, value.Provenance.MaterialHash}, Receipt{provider.HashMaterial(in.Material), len(in.Material), in.TimeoutMS}}, false), nil
 	})
 	return s
 }
@@ -94,6 +94,8 @@ func toolFailure(err ToolError) *mcp.CallToolResult {
 func executionFailure(err error) *mcp.CallToolResult {
 	code, message := "provider_failed", "Reviewer failed or returned an invalid result; completion is unknown."
 	switch {
+	case errors.Is(err, provider.ErrIsolationUnsupported):
+		return toolFailure(ToolError{"isolation_unsupported", "Provider cannot enforce the requested local material boundary; no review was started.", "not_started"})
 	case errors.Is(err, provider.ErrOutputLimit):
 		code, message = "output_too_large", "Reviewer output exceeded a configured limit; completion is unknown."
 	case errors.Is(err, context.DeadlineExceeded):
