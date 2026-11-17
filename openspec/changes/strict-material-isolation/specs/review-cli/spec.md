@@ -45,4 +45,3 @@ The list SHALL report the providers the binary can construct, not the provider b
 #### Scenario: Registered rather than installed
 - **WHEN** a registered provider's binary is absent from PATH
 - **THEN** it still appears in the list, and its absence surfaces only when a review is actually attempted
-

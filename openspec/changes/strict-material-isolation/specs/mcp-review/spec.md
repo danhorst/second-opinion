@@ -27,4 +27,3 @@ The `review` tool SHALL require a registered `provider` and complete UTF-8 `mate
 #### Scenario: Invalid explicit selection
 - **WHEN** provider is absent or unknown, or an argument is invalid
 - **THEN** no provider call is started and an input error is returned
-
