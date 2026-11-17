@@ -61,7 +61,7 @@ func runMCPInit(args []string, getenv func(string) string, stdout, stderr io.Wri
 	if created {
 		status = "Created private token"
 	}
-	_, err = fmt.Fprintf(stdout, "%s at %q.\nToken value was not printed.\nConfigure your harness for http://127.0.0.1:8765/mcp with Authorization: Bearer <token from this file>.\nIf using a custom token path, configure SECOND_OPINION_MCP_TOKEN_FILE in the service environment.\nThen run: brew services start danhorst/tap/second-opinion\n", status, absolute)
+	_, err = fmt.Fprintf(stdout, "%s at %q.\nToken value was not printed.\nRegister a harness with: second-opinion mcp install --harness codex --transport http --token-file %q\nIf using a custom token path, configure SECOND_OPINION_MCP_TOKEN_FILE in the service environment.\nThen run: brew services start danhorst/tap/second-opinion\n", status, absolute, absolute)
 	if err != nil {
 		return 1
 	}
@@ -111,41 +111,46 @@ func initializeMCPToken(path string) (bool, error) {
 }
 
 func validateMCPTokenFile(path string) error {
+	_, err := readMCPTokenFile(path)
+	return err
+}
+
+func readMCPTokenFile(path string) (string, error) {
 	invalid := errors.New("existing token must be a private user-owned regular nonsymlink file with a valid 32–4096-character bearer token; left unchanged")
 	before, err := os.Lstat(path)
 	if err != nil || !before.Mode().IsRegular() {
-		return invalid
+		return "", invalid
 	}
 	if before.Mode().Perm() != 0400 && before.Mode().Perm() != 0600 {
-		return invalid
+		return "", invalid
 	}
 	if before.Mode()&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky) != 0 {
-		return invalid
+		return "", invalid
 	}
 	if !serviceFileOwned(before) || before.Size() < 32 || before.Size() > 4097 {
-		return invalid
+		return "", invalid
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		return invalid
+		return "", invalid
 	}
 	defer f.Close()
 	after, err := f.Stat()
 	if err != nil || !os.SameFile(before, after) || !after.Mode().IsRegular() || !serviceFileOwned(after) || (after.Mode().Perm() != 0400 && after.Mode().Perm() != 0600) {
-		return invalid
+		return "", invalid
 	}
 	data, err := io.ReadAll(io.LimitReader(f, 4098))
 	if err != nil || len(data) > 4097 {
-		return invalid
+		return "", invalid
 	}
 	token := strings.TrimSuffix(string(data), "\n")
 	if len(token) < 32 || len(token) > 4096 {
-		return invalid
+		return "", invalid
 	}
 	for _, c := range []byte(token) {
 		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.ContainsRune("._~+/=-", rune(c))) {
-			return invalid
+			return "", invalid
 		}
 	}
-	return nil
+	return token, nil
 }
