@@ -77,6 +77,73 @@ Diff mode includes tracked staged and unstaged changes against the base, **not u
 
 Application version is shared by `--version` and MCP discovery. Git checkout builds include available revision and dirty-state metadata. `scripts/release vX.Y.Z` stamps the selected version into source archives; protocol and JSON schema versions remain separate.
 
+### Harness setup
+
+Register the installed binary with a supported harness, then check its connection:
+
+```sh
+second-opinion mcp install --harness codex --dry-run
+second-opinion mcp install --harness codex
+second-opinion mcp doctor --harness codex
+```
+
+Supported values are `codex`, `claude` (Claude Code), and `antigravity` (CLI/IDE).
+The default is user scope and stdio: no service or token is needed. Use `--scope project`
+from the project root for a project registration. Installation never selects a reviewer,
+changes tool trust, or installs the calling-agent skill; `skill install` remains separate.
+Restart/reload the harness and approve its normal MCP trust prompt as needed.
+
+| Harness | User configuration | Project configuration |
+| --- | --- | --- |
+| Codex | `$CODEX_HOME/config.toml`, otherwise `~/.codex/config.toml` | `.codex/config.toml` |
+| Claude Code | `~/.claude.json` | `.mcp.json` |
+| Antigravity CLI/IDE | `~/.gemini/config/mcp_config.json` | `.agents/mcp_config.json` |
+
+Use `--config PATH` for a different configuration file or Antigravity surface. A custom
+`CLAUDE_CONFIG_DIR` requires an explicit `--config` path. These adapters target the documented
+formats ([Codex](https://developers.openai.com/codex/mcp/),
+[Claude Code](https://code.claude.com/docs/en/mcp),
+[Antigravity](https://antigravity.google/docs/mcp)); they do not certify that every installed
+harness version accepts the configuration.
+
+For the shared Homebrew HTTP service:
+
+```sh
+second-opinion mcp init
+brew services start danhorst/tap/second-opinion
+second-opinion mcp install --harness codex --transport http
+second-opinion mcp doctor --harness codex --json
+```
+
+HTTP registrations launch `second-opinion mcp connect`, a stdio bridge that reads the private
+token file and connects to `http://127.0.0.1:8765/mcp`. The harness configuration contains the
+file path, never its contents. GUI applications need no exported token variable. Supply
+`--url` and `--token-file` when installing for a custom service address/token location.
+The connector accepts only literal loopback HTTP endpoints and refuses redirects and proxies.
+`mcp init` and service startup remain explicit operations.
+
+All registration commands support `--json`; install and uninstall also support `--dry-run`.
+Repeated installation is a no-op. A conflicting entry requires `--replace`. Existing files
+are backed up privately beside the original before atomic replacement; JSON/TOML formatting
+(and TOML comments) can change, but unrelated setting values are preserved. Malformed files,
+duplicate JSON keys, and symlink configuration files are refused. Avoid editing the same
+configuration concurrently; the installer checks for changes before publication but does
+not lock out another application. Project entries contain machine-specific absolute paths;
+review these before sharing them. Homebrew executable paths use the stable `opt` location.
+
+`mcp doctor` checks the selected file, executable, token safety when applicable, initialization,
+and discovery of `review` and `list_providers`. It runs no review and verifies neither provider
+authentication nor live harness acceptance. Other configuration scopes or managed policy can
+still override this registration. Diagnostics return nonzero on failure.
+
+```sh
+second-opinion mcp uninstall --harness codex
+```
+
+Uninstall removes only a recognized entry using this executable, leaving other servers,
+the token, and the service intact. If the executable moved, supply its old absolute path
+with `--executable`. Cursor and VS Code installers are deferred; use manual MCP configuration.
+
 ### Stateless MCP
 
 Start a local stdio server with `second-opinion mcp serve`. A harness configuration that supports the common MCP server format can use:
@@ -123,7 +190,7 @@ brew services start danhorst/tap/second-opinion
 
 Use `second-opinion mcp init --token-file /absolute/private/path` for a custom location; otherwise `SECOND_OPINION_MCP_TOKEN_FILE` overrides the default. Configure the service manager with that same custom path. There is no implicit token rotation: deliberately replace a token only when ready to update every client and restart the service.
 
-Run as your normal user, without `sudo`. Configure the harness for `http://127.0.0.1:8765/mcp` with `Authorization: Bearer <contents of token file>`, preferably using its secret facility. The token is deployment configuration; the gateway remains stateless. The launcher accepts a 32–4096-character bearer token in a user-owned regular file with mode 0400 or 0600, with at most one trailing newline. It rejects symlinks and never copies the token into the generated plist, service argv, or logs. Existing provider-child token stripping still applies.
+Run as your normal user, without `sudo`. Prefer `mcp install --harness codex --transport http` (or another supported harness) to avoid copying the token. For manual HTTP configuration, configure the harness for `http://127.0.0.1:8765/mcp` with `Authorization: Bearer <contents of token file>`, preferably using its secret facility. The token is deployment configuration; the gateway remains stateless. The launcher accepts a 32–4096-character bearer token in a user-owned regular file with mode 0400 or 0600, with at most one trailing newline. It rejects symlinks and never copies the token into the generated plist, service argv, or logs. Existing provider-child token stripping still applies.
 
 ```bash
 brew services info danhorst/tap/second-opinion

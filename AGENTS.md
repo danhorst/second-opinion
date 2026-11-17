@@ -46,6 +46,14 @@ exit propagation; the generated service metadata is checked with Homebrew. Live
 launchd/systemd lifecycle and provider credentials under a service environment have
 not been verified on this machine.
 
+MCP harness setup evidence is recorded in `docs/reviews/2026-11-16-mcp-harness-setup.md`.
+MCP harness setup tests cover temporary configuration edits, backups, idempotence,
+conflicts, private token handling, and real local MCP discovery. Live Codex/Claude Code/
+Antigravity acceptance, GUI reload/trust flows, and managed-policy precedence have not
+been verified on this machine. Doctor verifies protocol discovery, not reviewer credentials.
+Configuration updates detect changed content before publication but do not provide a
+cross-process lock against concurrent harness writes.
+
 ## Architecture
 
 - `internal/provider` — the `Provider` contract: `Request` (prompt + material by value), `Result` (findings + provenance), sentinel errors, `HashPrompt`, and `HashMaterial`.
@@ -55,6 +63,9 @@ not been verified on this machine.
 - `internal/provider/openai_compatible` — configurable HTTP adapter for OpenAI-compatible endpoints; endpoint integration requires configured credentials.
 - `internal/provider/antigravity` — the antigravity (`agy`) adapter: cwd isolation, prompt-embedded material, documented provenance degradation for unforced reviews.
 - `internal/provider/claude` — the claude adapter: safe mode, tools/settings/skills/MCP suppressed, stdin request transport, validated JSON results and model usage provenance; latest real-binary validation blocked on OAuth.
+- `internal/harness` — safe opt-in MCP configuration adapters for Codex, Claude Code, and Antigravity.
+- `internal/mcpclient` — bounded private stdio-to-HTTP connector; no review history.
+- `internal/mcpcheck` — non-review initialization and tool discovery for diagnostics.
 - `internal/mcpserver` — stateless review/discovery tools, strict schemas, bounded stdio and authenticated loopback HTTP transports; no repository reads, history, or result retrieval.
 - `internal/review` — one-shot executor with fresh provider construction and result validation; engine pieces shared by front-ends: the baked adversarial prompt (transport-neutral), target assembly (`FromFiles`, `FromDiff`), the provider registry.
 - `cmd/second-opinion` — the CLI: text findings or `--json` results, provenance on stderr; `--dry-run` previews requests, `--timeout` bounds provider calls. Exit 0 = operation succeeded, 1 = review/output failure, 2 = usage. `skill install` writes the calling-agent skill per harness.

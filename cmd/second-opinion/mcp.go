@@ -10,12 +10,25 @@ import (
 )
 
 func runMCP(ctx context.Context, args []string, getenv func(string) string, stdin io.ReadCloser, stdout io.WriteCloser, stderr io.Writer) int {
-	if len(args) > 0 && args[0] == "init" {
-		return runMCPInit(args[1:], getenv, stdout, stderr)
+	if len(args) > 0 {
+		switch args[0] {
+		case "init":
+			return runMCPInit(args[1:], getenv, stdout, stderr)
+		case "install":
+			return runMCPInstall(args[1:], getenv, stdout, stderr)
+		case "uninstall":
+			return runMCPUninstall(args[1:], getenv, stdout, stderr)
+		case "doctor":
+			return runMCPDoctor(ctx, args[1:], getenv, stdout, stderr)
+		case "connect":
+			return runMCPConnect(ctx, args[1:], getenv, stdin, stdout, stderr)
+		}
 	}
 	if len(args) == 0 || args[0] != "serve" {
 		fmt.Fprintln(stderr, "usage: second-opinion mcp serve [--transport stdio|http] [--listen 127.0.0.1:8765]")
 		fmt.Fprintln(stderr, "       second-opinion mcp init [--token-file PATH]")
+		fmt.Fprintln(stderr, "       second-opinion mcp install|uninstall|doctor --harness codex|claude|antigravity [--scope user|project] [--json]")
+		fmt.Fprintln(stderr, "       second-opinion mcp connect [--url http://127.0.0.1:8765/mcp] [--token-file PATH]")
 		return 2
 	}
 	fs := flag.NewFlagSet("mcp serve", flag.ContinueOnError)

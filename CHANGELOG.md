@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+- MCP harness installation/removal and non-review diagnostics for Codex, Claude Code, and Antigravity, with previews, structured output, and private configuration backups.
+- A bounded local HTTP connector that reads the service token file without copying credentials into harness configuration.
+
+
 ### Fixed
 
 - Reconcile the published MCP releases into main while retaining its OpenAI-compatible provider and material/model provenance. MCP and CLI JSON preserve material hashes; configured HTTP output budgets fail without truncation.

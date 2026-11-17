@@ -42,6 +42,10 @@ func usage() string {
   --list-providers  print the registered provider names and exit
 
 subcommands:
+  mcp install    register MCP with Codex, Claude Code, or Antigravity
+  mcp uninstall  remove a matching MCP registration
+  mcp doctor     check registration and MCP discovery without a review
+  mcp connect    connect stdio to the private HTTP service
   mcp init       initialize the private HTTP service token
   mcp serve      serve stateless review tools over stdio or private HTTP
   skill install  install the calling-agent skill for claude/codex harnesses
