@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-16
+
 ### Added
 - MCP harness installation/removal and non-review diagnostics for Codex, Claude Code, and Antigravity, with previews, structured output, and private configuration backups.
 - A bounded local HTTP connector that reads the service token file without copying credentials into harness configuration.
