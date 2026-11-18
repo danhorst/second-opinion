@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-17
+
 ### Added
 
 - Require `local-material-only` isolation through CLI or MCP; unsupported providers fail before review without fallback.
