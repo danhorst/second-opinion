@@ -64,7 +64,7 @@ second-opinion --provider codex --json -- spec.md supporting-file.go
 `--json` emits one object on successful review:
 
 ```json
-{"schema_version":1,"kind":"review","raw":"reviewer text","isolation":"unverified","provenance":{"provider":"claude","model":"reported-model-id","prompt_hash":"full SHA-256 hash"}}
+{"schema_version":2,"kind":"review","raw":"reviewer text","isolation":"unverified","provenance":{"provider":"claude","model":"reported-model-id","prompt_hash":"full SHA-256 hash"}}
 ```
 
 `raw` is the provider-returned text, not a parsed finding list. Provenance also includes the full SHA-256 `material_hash`. Read the exit status first: failures have a stderr diagnostic and no success object. The usual stderr provenance line is also emitted in JSON mode. Help and plain provider discovery retain their text output; `--list-providers --json` includes the `provider_isolation` mapping. JSON output requires UTF-8 text and fails rather than silently replacing invalid bytes.
@@ -160,7 +160,7 @@ The server supports MCP `2026-07-28` and `2025-11-25`. Discover `list_providers`
 
 Optional `model` selects a reviewer; optional `prompt` replaces the baked prompt. Provider is always explicit, even when `SECOND_OPINION_PROVIDER` is set. The gateway never opens paths or URLs in material, requests client roots, or inherits previous calls. Assemble diffs and supporting files in the calling harness.
 
-Each result has equivalent `structuredContent` and one JSON text block. Success contains `schema_version: 1`, `kind: "review"`, authoritative `raw` text, effective `isolation`, unchanged `provenance`, and a `request` receipt containing `material_hash`, `material_bytes`, and effective `timeout_ms`. A successful empty `raw` means a validated review completed. Model provenance has the same limitations described below; unknown default markers do not establish independence.
+Each result has equivalent `structuredContent` and one JSON text block. Success contains `schema_version: 2`, `kind: "review"`, authoritative `raw` text, effective `isolation`, unchanged `provenance`, and a `request` receipt containing `material_hash`, `material_bytes`, and effective `timeout_ms`. A successful empty `raw` means a validated review completed. Model provenance has the same limitations described below; unknown default markers do not establish independence.
 
 Tool failures set `isError` and return `kind: "error"` with `error.code`, a safe message, and `execution`. Input errors and `busy` mean `not_started`; provider errors, timeouts, cancellation, and output overflow mean `unknown`. A lost response also means unknown completion. There are no result handles, recovery, cached results, or idempotency keys. Retrying starts independent work and may incur duplicate cost. The gateway adds no retries; the existing Codex model-auth fallback remains within the call deadline.
 
@@ -227,6 +227,8 @@ Select one with `--provider` or `$SECOND_OPINION_PROVIDER`.
 Ollama and the optional parsed findings envelope remain planned. See the [repository review](docs/reviews/2026-11-13.md) and its [hardening follow-up](docs/reviews/2026-11-13-hardening.md) for remaining gaps and verification limits.
 
 ## Local material isolation
+
+CLI review/discovery JSON and all MCP tool outcomes now use `schema_version: 2`; consumers of the v1 contract must update before upgrading. There is no v1 response negotiation. Plain text output is unchanged. Dry-run retains v1 unless `require_isolation` is supplied, in which case it uses v2.
 
 To require a client boundary after assembling the material:
 

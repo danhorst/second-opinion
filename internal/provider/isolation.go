@@ -39,8 +39,25 @@ func ReviewWithIsolation(ctx context.Context, p Provider, req Request, required 
 		return nil, fmt.Errorf("%w: requested %q, available %q", ErrIsolationUnsupported, required, effective)
 	}
 	result, err := p.Review(ctx, req)
+	if err != nil {
+		return result, &reviewInvocationError{err}
+	}
 	if result != nil && err == nil {
 		result.Isolation = effective
 	}
 	return result, err
+}
+
+// reviewInvocationError distinguishes policy rejection from provider errors after
+// invocation. Wrapping preserves classification without claiming remote execution.
+type reviewInvocationError struct{ err error }
+
+func (e *reviewInvocationError) Error() string { return e.err.Error() }
+func (e *reviewInvocationError) Unwrap() error { return e.err }
+
+// IsolationRejectedBeforeReview is true only for a policy rejection outside a
+// provider invocation, including when a provider forwards a nested gate error.
+func IsolationRejectedBeforeReview(err error) bool {
+	var invoked *reviewInvocationError
+	return errors.Is(err, ErrIsolationUnsupported) && !errors.As(err, &invoked)
 }

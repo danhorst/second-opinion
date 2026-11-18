@@ -399,7 +399,7 @@ func TestSDKBusyStressDoesNotQueueOrRetainMaterial(t *testing.T) {
 
 func TestResultEncodingBounds(t *testing.T) {
 	raw := strings.Repeat("\x00", MaxRawBytes)
-	result := toolResult(ReviewOutput{SchemaVersion: 1, Kind: "review", Raw: raw}, false)
+	result := toolResult(ReviewOutput{SchemaVersion: 2, Kind: "review", Raw: raw}, false)
 	if result.IsError {
 		t.Fatal("maximum escaped raw rejected")
 	}
@@ -407,5 +407,5 @@ func TestResultEncodingBounds(t *testing.T) {
 	if err != nil || len(encoded) > MaxResponseBytes {
 		t.Fatalf("encoding bound: %d, %v", len(encoded), err)
 	}
-	failureCode(t, toolResult(ReviewOutput{SchemaVersion: 1, Kind: "review", Provenance: Provenance{Model: strings.Repeat("x", MaxResponseBytes)}}, false), "output_too_large")
+	failureCode(t, toolResult(ReviewOutput{SchemaVersion: 2, Kind: "review", Provenance: Provenance{Model: strings.Repeat("x", MaxResponseBytes)}}, false), "output_too_large")
 }

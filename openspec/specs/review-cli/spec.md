@@ -87,7 +87,7 @@ It SHALL also exit 0 for a successful preview, help, or discovery operation. It 
 - **THEN** the provider is constructed with X forced, and provenance reflects what actually ran
 
 ### Requirement: Machine-readable completed reviews
-With `--json`, the CLI SHALL emit one JSON object with `schema_version` 1, `kind` `review`, `raw` containing the provider's findings string unchanged, and `provenance` containing `provider`, `model`, and the full `prompt_hash`. It SHALL NOT parse, count, or rank findings. Default text output and stderr provenance SHALL remain available. Failures SHALL use the documented exit codes and stderr, without a success object. Help and plain discovery SHALL retain their text formats; `--list-providers --json` SHALL return structured discovery with isolation metadata. JSON output SHALL reject invalid UTF-8 with exit 1 rather than silently replace bytes.
+With `--json`, the CLI SHALL emit one JSON object with `schema_version` 2, `kind` `review`, `raw` containing the provider's findings string unchanged, and `provenance` containing `provider`, `model`, and the full `prompt_hash`. It SHALL NOT parse, count, or rank findings. Default text output and stderr provenance SHALL remain available. Failures SHALL use the documented exit codes and stderr, without a success object. Help and plain discovery SHALL retain their text formats; `--list-providers --json` SHALL return structured discovery with isolation metadata. JSON output SHALL reject invalid UTF-8 with exit 1 rather than silently replace bytes.
 
 #### Scenario: Findings and provenance travel together
 - **WHEN** a review completes with `--json`
@@ -102,7 +102,7 @@ With `--json`, the CLI SHALL emit one JSON object with `schema_version` 1, `kind
 - **THEN** the CLI exits 1 and reports an output failure without claiming that the reviewer did not run
 
 ### Requirement: Explicit request preview
-With `--dry-run`, the CLI SHALL assemble the same prompt and material used by a review and emit JSON with `schema_version` 1, `kind` `request`, `prompt`, `material`, and `prompt_hash`. It SHALL NOT construct or invoke a provider and SHALL ignore provider/model selection. Successful preview SHALL exit 0; missing or empty targets SHALL retain their existing error behavior. Preview SHALL represent engine input rather than provider-internal instructions. A preview containing invalid UTF-8 SHALL fail with exit 2 instead of silently replacing bytes.
+With `--dry-run`, the CLI SHALL assemble the same prompt and material used by a review and emit JSON with `schema_version` 1 (or 2 when an isolation requirement is supplied), `kind` `request`, `prompt`, `material`, and `prompt_hash`. It SHALL NOT construct or invoke a provider and SHALL ignore provider/model selection. Successful preview SHALL exit 0; missing or empty targets SHALL retain their existing error behavior. Preview SHALL represent engine input rather than provider-internal instructions. A preview containing invalid UTF-8 SHALL fail with exit 2 instead of silently replacing bytes.
 
 #### Scenario: Preview without credentials or provider
 - **WHEN** a caller previews a file or diff, optionally with a prompt override
@@ -150,7 +150,7 @@ The CLI SHALL expose `--version` and MCP SHALL report the same granular applicat
 - **THEN** reported application identity includes its revision and dirty state when modified
 
 ### Requirement: CLI isolation controls and receipts
-The CLI SHALL accept `--require-isolation local-material-only`, reject unknown values as usage errors, and fail unsupported execution with exit 1 before invoking the reviewer. JSON results and stderr provenance reports SHALL identify the effective isolation boundary. Dry-run SHALL record a supplied requirement without checking or claiming support. `--list-providers --json` SHALL return registered names and a provider-isolation mapping without executing reviews; plain listing SHALL remain unchanged.
+The CLI SHALL accept `--require-isolation local-material-only`, reject unknown values as usage errors, and fail unsupported execution with exit 1 before invoking the reviewer. JSON results and stderr provenance reports SHALL identify the effective isolation boundary. Dry-run SHALL use schema version 2 when a requirement is supplied and retain version 1 otherwise. It SHALL record a supplied requirement without checking or claiming support. `--list-providers --json` SHALL use schema version 2 and return registered names and a provider-isolation mapping without executing reviews; plain listing SHALL remain unchanged.
 
 #### Scenario: Strict preview without provider
 - **WHEN** dry-run is requested with local-material-only and no provider

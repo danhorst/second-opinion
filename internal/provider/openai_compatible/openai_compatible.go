@@ -187,6 +187,9 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 		return nil, classifyStatus(resp.StatusCode, responseBody)
 	}
 
+	if err := validateResponseKeys(responseBody); err != nil {
+		return nil, fmt.Errorf("openai-compatible: malformed response: %w", err)
+	}
 	var decoded chatResponse
 	if err := json.Unmarshal(responseBody, &decoded); err != nil {
 		return nil, fmt.Errorf("openai-compatible: malformed response: %w", err)

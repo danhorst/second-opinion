@@ -175,7 +175,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	// and provider selection: no target, provider, or repo is required.
 	if cfg.listProv {
 		if cfg.jsonOutput {
-			return writeJSON(stdout, stderr, map[string]any{"schema_version": 1, "kind": "providers", "providers": review.Providers(), "provider_isolation": review.ProviderIsolation()})
+			return writeJSON(stdout, stderr, map[string]any{"schema_version": 2, "kind": "providers", "providers": review.Providers(), "provider_isolation": review.ProviderIsolation()})
 		}
 		for _, name := range review.Providers() {
 			fmt.Fprintln(stdout, name)
@@ -234,8 +234,12 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 			fmt.Fprintln(stderr, "second-opinion: JSON preview requires UTF-8 prompt and material")
 			return 2
 		}
+		schemaVersion := 1
+		if cfg.requireIsolation != "" {
+			schemaVersion = 2
+		}
 		return writeJSON(stdout, stderr, requestOutput{
-			SchemaVersion: 1, Kind: "request", Prompt: req.Prompt,
+			SchemaVersion: schemaVersion, Kind: "request", Prompt: req.Prompt,
 			Material: req.Material, PromptHash: provider.HashPrompt(req.Prompt), RequireIsolation: cfg.requireIsolation,
 		})
 	}
@@ -263,7 +267,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 			return 1
 		}
 		if code := writeJSON(stdout, stderr, reviewOutput{
-			SchemaVersion: 1, Kind: "review", Raw: res.Findings, Isolation: res.Isolation,
+			SchemaVersion: 2, Kind: "review", Raw: res.Findings, Isolation: res.Isolation,
 			Provenance: provenanceOutput{pv.Provider, pv.Model, pv.PromptHash, pv.MaterialHash},
 		}); code != 0 {
 			return code

@@ -33,7 +33,7 @@ var EmptyInputSchema = objectSchema(map[string]any{})
 
 func errorSchema() map[string]any {
 	return objectSchema(map[string]any{
-		"schema_version": constantSchema(1), "kind": constantSchema("error"),
+		"schema_version": constantSchema(2), "kind": constantSchema("error"),
 		"error": objectSchema(map[string]any{
 			"code":      map[string]any{"type": "string", "enum": []string{"invalid_input", "input_too_large", "busy", "unavailable", "auth", "timeout", "cancelled", "output_too_large", "provider_failed", "isolation_unsupported"}},
 			"message":   textSchema(),
@@ -44,7 +44,7 @@ func errorSchema() map[string]any {
 
 var ReviewOutputSchema = map[string]any{"type": "object", "oneOf": []any{
 	objectSchema(map[string]any{
-		"schema_version": constantSchema(1), "kind": constantSchema("review"), "raw": map[string]any{"type": "string"},
+		"schema_version": constantSchema(2), "kind": constantSchema("review"), "raw": map[string]any{"type": "string"},
 		"isolation":  isolationSchema(),
 		"provenance": objectSchema(map[string]any{"provider": textSchema(), "model": textSchema(), "prompt_hash": hashSchema(), "material_hash": hashSchema()}, "provider", "model", "prompt_hash", "material_hash"),
 		"request":    objectSchema(map[string]any{"material_hash": hashSchema(), "material_bytes": integerSchema(1, MaxInputBytes), "timeout_ms": integerSchema(1, MaxTimeoutMS)}, "material_hash", "material_bytes", "timeout_ms"),
@@ -66,7 +66,7 @@ func limitsSchema() map[string]any {
 
 var ProvidersOutputSchema = map[string]any{"type": "object", "oneOf": []any{
 	objectSchema(map[string]any{
-		"schema_version": constantSchema(1), "kind": constantSchema("providers"),
+		"schema_version": constantSchema(2), "kind": constantSchema("providers"),
 		"providers":          map[string]any{"type": "array", "items": textSchema(), "uniqueItems": true},
 		"limits":             limitsSchema(),
 		"provider_isolation": providerIsolationSchema(),

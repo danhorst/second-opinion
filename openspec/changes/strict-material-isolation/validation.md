@@ -10,3 +10,5 @@ Evidence: `docs/reviews/2026-11-17-material-isolation.md`.
 - `git diff --check`: passed.
 - Real endpoint conformance: skipped, missing configured API key/model; no endpoint
   certification is claimed. Local HTTP fixtures establish only client mechanics.
+
+Pre-release review fixes and schema-v2 migration are recorded in the evidence document.

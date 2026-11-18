@@ -14,7 +14,7 @@ Raw reviewer output is mostly triage overhead — the value is in the filtering,
 - A document: `second-opinion --provider P path/to/SPEC.md [more.md ...]`
 - The current diff: `second-opinion --provider P --diff [BASE]` (BASE defaults to `HEAD`)
 - Override the prompt: `--prompt-file prompt.txt`. Force a model: `--model M`.
-- For harness consumption: add `--json` to get one versioned object with `raw` and `provenance` (`provider`, `model`, full `prompt_hash` and `material_hash`). This does not parse or rank findings.
+- For harness consumption: add `--json` to get one schema-version-2 object with `raw` and `provenance` (`provider`, `model`, full `prompt_hash` and `material_hash`). This does not parse or rank findings.
 - Inspect input first: `second-opinion --dry-run --diff HEAD` or `--dry-run path/to/SPEC.md`. The JSON contains the exact engine `prompt` and `material`; no provider is needed or constructed, and provider/model selection is ignored. Keep inputs unchanged before the actual review.
 - Bound reviewer latency: `--timeout 2m`. This covers the provider call including fallbacks, after assembly; omission means unlimited. On macOS/Linux/BSD the invocation process group is terminated; detached children are outside this guarantee, and other platforms currently cancel only the parent.
 - Literal filenames: use `--` before paths beginning with a dash.
@@ -45,6 +45,8 @@ Check it before triaging: if the model matches the material's author, the review
 Check status before parsing JSON; a failed operation does not emit a success object. Help remains text. `--list-providers --json` returns registered names and their `provider_isolation` metadata without checking credentials.
 
 To require a local client material boundary, pass `--require-isolation local-material-only` (MCP: `require_isolation`). Unsupported adapters fail before review without fallback. The HTTP adapter supports it; harness adapters report `unverified`. Successful results carry effective `isolation`. The configured endpoint and transport remain trusted: this is not endpoint context or OS isolation certification. Dry-run records the requirement without claiming it is satisfied.
+
+CLI review/discovery JSON and all MCP tool outcomes use schema version 2. Update v1 consumers before upgrading; v1 negotiation is not provided. Dry-run remains v1 unless isolation is requested.
 
 ## MCP calls
 

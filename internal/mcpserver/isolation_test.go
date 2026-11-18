@@ -56,3 +56,19 @@ func TestMCPMaterialOnlyHTTPReview(t *testing.T) {
 		t.Fatalf("result=%v", v)
 	}
 }
+
+func TestMCPProviderIsolationErrorDoesNotClaimNotStarted(t *testing.T) {
+	calls := 0
+	e := review.Executor{NewProvider: func(string, string, provider.CaptureLimits) (provider.Provider, error) {
+		return testReviewer(func(_ context.Context, r provider.Request) (*provider.Result, error) {
+			calls++
+			return nil, provider.ErrIsolationUnsupported
+		}), nil
+	}}
+	cs := sdkSession(t, e, "2025-11-25")
+	r := callTool(t, cs, "review", map[string]any{"provider": "codex", "material": "m"})
+	failureCode(t, r, "provider_failed")
+	if calls != 1 || mirrored(t, r)["error"].(map[string]any)["execution"] != "unknown" {
+		t.Fatal("false not-started receipt")
+	}
+}

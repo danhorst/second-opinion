@@ -40,7 +40,7 @@ cold invocation obligations and evidence are unchanged.
   SECOND_OPINION_API_KEY and SECOND_OPINION_API_MODEL are not configured. This is
   not a passing endpoint certification or a new cold-check result.
 
-- Strict OpenSpec validation passed for this change and all 14 current specs.
+- Strict OpenSpec validation passed for this change and all current specs.
   Delta specs were synced to current specs. `git diff --check` passed.
 
 ## Limits
@@ -52,3 +52,34 @@ Compromised client code and complete OS isolation are outside the boundary.
 Local fixtures verify client mechanics, not remote model conformance. Existing
 positive-control-gated real-provider tests remain necessary for endpoint deployment
 certification. A successful cold probe alone cannot establish filesystem denial.
+
+## Pre-release review and fixes
+
+Public PR #3 was reviewed through the Codex adapter with GPT-5.4 requested. Returned
+provenance was `provider=codex model=codex-default`, prompt hash
+`752338a23e0f998bb567f2a907c0bc24c03e00ed43d3ef5ca821a5270f4ac120`, material hash
+`aab57d23d1fff34056f11e275fbeeae0b880c083ae8a088f06a8537c4250d7a4`.
+The review completed, but model independence is unverified. Direct Claude OAuth
+was expired; Antigravity Opus and Gemini attempts timed out and supplied no review.
+
+Three findings were accepted and fixed before release:
+
+- Strict v1 consumers cannot accept newly required output fields. CLI review and
+  discovery JSON and all MCP tool outcomes now use schema version 2. Consumers must
+  upgrade; v1 negotiation is not supplied. Preview stays v1 unless isolation is
+  requested. This is an explicit pre-1.0 minor-release migration.
+- Duplicate response keys could overwrite a tool call. The HTTP adapter now rejects
+  duplicate keys and case-folded aliases before interpreting responses, with fixtures
+  for hidden tool calls, function calls, message replacements and Unicode aliases.
+- A provider-returned isolation sentinel could falsely imply no execution. Errors
+  returned after invocation now carry a phase marker; MCP reports unknown execution
+  rather than not_started. A regression test verifies the distinction.
+
+The suggested filesystem-tracing fixture was not adopted: the fixture demonstrates
+exact outbound content and no URL fetch, while code inspection establishes absence
+of file-read and tool-execution paths. It does not independently observe every file
+open attempt. No OS-level denial or tracing evidence is claimed.
+
+The exact isolated release candidate passed make test (including go vet), strict
+OpenSpec validation and diff checks after these fixes. PR CI additionally runs race
+checks, builds and formatting validation.

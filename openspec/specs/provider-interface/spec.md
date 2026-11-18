@@ -94,7 +94,7 @@ HTTP providers SHALL honor configured output budgets for success and error respo
 - **THEN** input material identity is preserved and excessive output fails explicitly
 
 ### Requirement: Optional isolation execution policy
-Callers SHALL be able to require `local-material-only` separately from the content-only review request. A provider lacking support SHALL return a distinguishable isolation-unsupported error before Review execution, with no result or fallback. Unknown requirements SHALL fail closed. Successful results SHALL carry the effective local boundary separately from reviewer provenance.
+Callers SHALL be able to require `local-material-only` separately from the content-only review request. A provider lacking support SHALL return a distinguishable isolation-unsupported error before Review execution, with no result or fallback. Unknown requirements SHALL fail closed. An isolation error returned after provider invocation SHALL NOT be classified as a pre-execution rejection. Successful results SHALL carry the effective local boundary separately from reviewer provenance.
 
 #### Scenario: Required boundary unsupported
 - **WHEN** a caller requires local-material-only from an unsupported provider

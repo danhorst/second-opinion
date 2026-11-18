@@ -95,7 +95,7 @@ func TestJSONPreservesRawAndProvenance(t *testing.T) {
 			if err := decoder.Decode(&result); err != nil {
 				t.Fatal(err)
 			}
-			if result.Kind != "review" || result.SchemaVersion != 1 || result.Raw != raw || result.Provenance.Provider != "test" || result.Provenance.Model != "unknown-default" || len(result.Provenance.PromptHash) != 64 {
+			if result.Kind != "review" || result.SchemaVersion != 2 || result.Raw != raw || result.Provenance.Provider != "test" || result.Provenance.Model != "unknown-default" || len(result.Provenance.PromptHash) != 64 {
 				t.Fatalf("wrong JSON: %+v", result)
 			}
 			if err := decoder.Decode(new(any)); !errors.Is(err, io.EOF) {

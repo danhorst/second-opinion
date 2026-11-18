@@ -83,6 +83,11 @@ func TestRedirectsNeverFollowed(t *testing.T) {
 
 func TestToolResponsesFailWithoutFollowup(t *testing.T) {
 	for _, choice := range []string{
+		`{"message":{"content":"findings","tool_calls":[{}],"tool_calls":[]}}`,
+		`{"message":{"content":"findings","tool_calls":[{}],"TOOL_CALLS":[]}}`,
+		`{"message":{"content":"findings","tool_calls":[{}],"tool_callſ":[]}}`,
+		`{"message":{"function_call":{},"function_call":null,"content":"findings"}}`,
+		`{"message":{"tool_calls":[{}]},"message":{"content":"findings"}}`,
 		`{"message":{"content":"findings","tool_calls":[{"id":"x","type":"function","function":{"name":"read_file","arguments":"/private/file"}}]}}`,
 		`{"message":{"content":"findings","function_call":{"name":"read_file","arguments":"/private/file"}}}`,
 		`{"message":{"content":"findings"},"finish_reason":"tool_calls"}`,
