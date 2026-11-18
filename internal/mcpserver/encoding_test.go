@@ -9,7 +9,7 @@ import (
 func TestWorstCaseRawEncodingAndOversizedProvenance(t *testing.T) {
 	// NUL expands to six JSON bytes and expands again inside mirrored text.
 	raw := strings.Repeat("\x00", MaxRawBytes)
-	output := ReviewOutput{1, "review", raw, Provenance{"codex", "model", strings.Repeat("a", 64), strings.Repeat("b", 64)}, Receipt{strings.Repeat("b", 64), 1, 120000}}
+	output := ReviewOutput{"unverified", 2, "review", raw, Provenance{"codex", "model", strings.Repeat("a", 64), strings.Repeat("b", 64)}, Receipt{strings.Repeat("b", 64), 1, 120000}}
 	result := toolResult(output, false)
 	if result.IsError {
 		t.Fatal("maximum valid raw findings rejected")

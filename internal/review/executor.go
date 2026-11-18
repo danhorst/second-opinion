@@ -24,11 +24,12 @@ type Executor struct {
 // baked prompt; a supplied prompt and material are passed through byte-for-byte.
 // Front-ends own their input validation and limits.
 type ExecutionRequest struct {
-	Provider      string
-	Model         string
-	Material      string
-	Prompt        *string
-	CaptureLimits provider.CaptureLimits
+	Provider         string
+	Model            string
+	Material         string
+	Prompt           *string
+	CaptureLimits    provider.CaptureLimits
+	RequireIsolation provider.Isolation
 }
 
 // ErrInvalidResult identifies a provider result that violates the contract.
@@ -57,7 +58,7 @@ func (e Executor) Review(ctx context.Context, req ExecutionRequest) (*provider.R
 		return nil, fmt.Errorf("%w: factory returned no provider", ErrInvalidResult)
 	}
 	prompt := ResolvePrompt(req.Prompt)
-	result, err := p.Review(ctx, provider.Request{Prompt: prompt, Material: req.Material})
+	result, err := provider.ReviewWithIsolation(ctx, p, provider.Request{Prompt: prompt, Material: req.Material}, req.RequireIsolation)
 	if result != nil && err != nil {
 		return nil, fmt.Errorf("%w: result accompanied by error", ErrInvalidResult)
 	}

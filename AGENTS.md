@@ -54,6 +54,14 @@ been verified on this machine. Doctor verifies protocol discovery, not reviewer 
 Configuration updates detect changed content before publication but do not provide a
 cross-process lock against concurrent harness writes.
 
+Local material-isolation policy and transport evidence is recorded in
+`docs/reviews/2026-11-17-material-isolation.md`. `local-material-only` certifies only
+client mechanics, not endpoint behavior. Endpoints (including local servers), custom
+HTTP transports, credentials, and configuration remain trusted. Endpoint-added context,
+server-side tools, compromised local code, and complete OS isolation are not covered.
+Subprocess adapters remain `unverified` for this boundary; cold checks are bounded
+observations, not proof of filesystem denial. No live endpoint certification was added.
+
 ## Architecture
 
 - `internal/provider` — the `Provider` contract: `Request` (prompt + material by value), `Result` (findings + provenance), sentinel errors, `HashPrompt`, and `HashMaterial`.

@@ -47,6 +47,8 @@ type Provenance struct {
 type Result struct {
 	Findings   string
 	Provenance Provenance
+	// Isolation is recorded by the execution gate, not supplied by the model.
+	Isolation Isolation
 }
 
 // Provider performs adversarial reviews. Review returns a Result when the

@@ -64,10 +64,10 @@ second-opinion --provider codex --json -- spec.md supporting-file.go
 `--json` emits one object on successful review:
 
 ```json
-{"schema_version":1,"kind":"review","raw":"reviewer text","provenance":{"provider":"claude","model":"reported-model-id","prompt_hash":"full SHA-256 hash"}}
+{"schema_version":2,"kind":"review","raw":"reviewer text","isolation":"unverified","provenance":{"provider":"claude","model":"reported-model-id","prompt_hash":"full SHA-256 hash"}}
 ```
 
-`raw` is the provider-returned text, not a parsed finding list. Provenance also includes the full SHA-256 `material_hash`. Read the exit status first: failures have a stderr diagnostic and no success object. The usual stderr provenance line is also emitted in JSON mode. Help and provider discovery retain their text output. JSON output requires UTF-8 text and fails rather than silently replacing invalid bytes.
+`raw` is the provider-returned text, not a parsed finding list. Provenance also includes the full SHA-256 `material_hash`. Read the exit status first: failures have a stderr diagnostic and no success object. The usual stderr provenance line is also emitted in JSON mode. Help and plain provider discovery retain their text output; `--list-providers --json` includes the `provider_isolation` mapping. JSON output requires UTF-8 text and fails rather than silently replacing invalid bytes.
 
 `--dry-run` emits `schema_version`, `kind: "request"`, `prompt`, `material`, and `prompt_hash`. It requires no provider or credentials and ignores provider/model selection. This is the assembled engine request; adapter delimiters and harness-internal instructions are not included. Preview and execution assemble separate snapshots, so keep inputs unchanged between them.
 
@@ -152,7 +152,7 @@ Start a local stdio server with `second-opinion mcp serve`. A harness configurat
 {"mcpServers":{"second-opinion":{"command":"second-opinion","args":["mcp","serve"]}}}
 ```
 
-The server supports MCP `2026-07-28` and `2025-11-25`. Discover `list_providers` with `{}`; it returns sorted registered names and effective limits without checking credentials or invoking a model. Then call `review` with complete material:
+The server supports MCP `2026-07-28` and `2025-11-25`. Discover `list_providers` with `{}`; it returns sorted registered names, a `provider_isolation` mapping, and effective limits without checking credentials or invoking a model. Then call `review` with complete material:
 
 ```json
 {"provider":"codex","material":"Complete document or patch, with deliberately selected supporting context","timeout_ms":120000}
@@ -160,7 +160,7 @@ The server supports MCP `2026-07-28` and `2025-11-25`. Discover `list_providers`
 
 Optional `model` selects a reviewer; optional `prompt` replaces the baked prompt. Provider is always explicit, even when `SECOND_OPINION_PROVIDER` is set. The gateway never opens paths or URLs in material, requests client roots, or inherits previous calls. Assemble diffs and supporting files in the calling harness.
 
-Each result has equivalent `structuredContent` and one JSON text block. Success contains `schema_version: 1`, `kind: "review"`, authoritative `raw` text, unchanged `provenance`, and a `request` receipt containing `material_hash`, `material_bytes`, and effective `timeout_ms`. A successful empty `raw` means a validated review completed. Model provenance has the same limitations described below; unknown default markers do not establish independence.
+Each result has equivalent `structuredContent` and one JSON text block. Success contains `schema_version: 2`, `kind: "review"`, authoritative `raw` text, effective `isolation`, unchanged `provenance`, and a `request` receipt containing `material_hash`, `material_bytes`, and effective `timeout_ms`. A successful empty `raw` means a validated review completed. Model provenance has the same limitations described below; unknown default markers do not establish independence.
 
 Tool failures set `isError` and return `kind: "error"` with `error.code`, a safe message, and `execution`. Input errors and `busy` mean `not_started`; provider errors, timeouts, cancellation, and output overflow mean `unknown`. A lost response also means unknown completion. There are no result handles, recovery, cached results, or idempotency keys. Retrying starts independent work and may incur duplicate cost. The gateway adds no retries; the existing Codex model-auth fallback remains within the call deadline.
 
@@ -225,6 +225,32 @@ Select one with `--provider` or `$SECOND_OPINION_PROVIDER`.
 `codex-default` and `antigravity-default` are unknown-model markers, not model identities. Codex prefers reported session model metadata and falls back to the requested name or its default marker. Antigravity forced names reflect the requested model without independently verified output metadata. Neither establishes that the reviewer differs from the author. Claude uses model usage metadata when available and falls back to a requested name or `claude-default` if it is absent.
 
 Ollama and the optional parsed findings envelope remain planned. See the [repository review](docs/reviews/2026-11-13.md) and its [hardening follow-up](docs/reviews/2026-11-13-hardening.md) for remaining gaps and verification limits.
+
+## Local material isolation
+
+CLI review/discovery JSON and all MCP tool outcomes now use `schema_version: 2`; consumers of the v1 contract must update before upgrading. There is no v1 response negotiation. Plain text output is unchanged. Dry-run retains v1 unless `require_isolation` is supplied, in which case it uses v2.
+
+To require a client boundary after assembling the material:
+
+```bash
+second-opinion --provider openai-compatible --require-isolation local-material-only --json document.md
+second-opinion --list-providers --json
+```
+
+For MCP, add `"require_isolation": "local-material-only"` to the `review` arguments. Unsupported providers fail before reviewer execution: CLI exit 1; MCP `isolation_unsupported` with `execution: "not_started"`. There is no downgrade or provider fallback. Omit the requirement to retain existing provider selection.
+
+| Provider | Reported local boundary |
+| --- | --- |
+| `openai-compatible` | `local-material-only` |
+| `codex`, `claude`, `antigravity` | `unverified` |
+
+`local-material-only` means the adapter sends only the assembled prompt and material as review content. It launches no reviewer harness, supplies no tools, and never follows reviewer-provided paths or URLs. Redirect responses and tool/function-call responses fail explicitly, including tool calls accompanied by findings. Configure the final endpoint URL directly.
+
+This is a **client-side boundary**. The configured endpoint, credentials, configuration, and HTTP transport are trusted. A local endpoint may have its own filesystem access; a remote endpoint may add context or use server-side tools. This client does not certify either behavior, protect against compromised local code, or keep remote reviews on the machine. Local transport tests are not remote endpoint or model certification.
+
+`unverified` means the adapter has no certified local read boundary; its existing cold-invocation controls remain required. Successful CLI/MCP JSON includes `isolation`, and CLI stderr reports it alongside provenance. `--dry-run` records a supplied `require_isolation` but does not check support or claim execution. Review output and discovery describe capability, not credential readiness.
+
+See [verification evidence and limits](docs/reviews/2026-11-17-material-isolation.md).
 
 ## Calling-agent skill
 

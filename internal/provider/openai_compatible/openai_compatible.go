@@ -89,10 +89,19 @@ type message struct {
 	Content string `json:"content"`
 }
 
+// Isolation certifies only this client's mechanics. The configured endpoint,
+// credentials, and HTTP transport are trusted, not sandboxed by this adapter.
+func (p *Provider) Isolation() provider.Isolation { return provider.IsolationLocalMaterialOnly }
+
 type chatResponse struct {
 	Model   string `json:"model"`
 	Choices []struct {
-		Message message `json:"message"`
+		Message struct {
+			Content      string            `json:"content"`
+			ToolCalls    []json.RawMessage `json:"tool_calls"`
+			FunctionCall json.RawMessage   `json:"function_call"`
+		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 }
 
@@ -135,7 +144,11 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 	if client == nil {
 		client = http.DefaultClient
 	}
-	resp, err := client.Do(httpReq)
+	// Do not mutate a shared/injected client, and never let a response choose a
+	// new destination. Custom transports remain trusted execution dependencies.
+	boundedClient := *client
+	boundedClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	resp, err := boundedClient.Do(httpReq)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
@@ -143,6 +156,9 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 		return nil, fmt.Errorf("%w: openai-compatible request: %v", provider.ErrUnavailable, err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		return nil, errors.New("openai-compatible: redirects are disabled; configure the final endpoint URL")
+	}
 
 	success := resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices
 	budget := defaultResponseBytes
@@ -171,12 +187,21 @@ func (p *Provider) Review(ctx context.Context, req provider.Request) (*provider.
 		return nil, classifyStatus(resp.StatusCode, responseBody)
 	}
 
+	if err := validateResponseKeys(responseBody); err != nil {
+		return nil, fmt.Errorf("openai-compatible: malformed response: %w", err)
+	}
 	var decoded chatResponse
 	if err := json.Unmarshal(responseBody, &decoded); err != nil {
 		return nil, fmt.Errorf("openai-compatible: malformed response: %w", err)
 	}
 	if len(decoded.Choices) == 0 {
 		return nil, errors.New("openai-compatible: response contained no choices")
+	}
+	for _, choice := range decoded.Choices {
+		call := bytes.TrimSpace(choice.Message.FunctionCall)
+		if len(choice.Message.ToolCalls) > 0 || (len(call) > 0 && !bytes.Equal(call, []byte("null"))) || choice.FinishReason == "tool_calls" || choice.FinishReason == "function_call" {
+			return nil, errors.New("openai-compatible: reviewer requested tools; material-only reviews cannot execute tools")
+		}
 	}
 
 	model := decoded.Model

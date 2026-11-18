@@ -14,7 +14,7 @@ Raw reviewer output is mostly triage overhead — the value is in the filtering,
 - A document: `second-opinion --provider P path/to/SPEC.md [more.md ...]`
 - The current diff: `second-opinion --provider P --diff [BASE]` (BASE defaults to `HEAD`)
 - Override the prompt: `--prompt-file prompt.txt`. Force a model: `--model M`.
-- For harness consumption: add `--json` to get one versioned object with `raw` and `provenance` (`provider`, `model`, full `prompt_hash` and `material_hash`). This does not parse or rank findings.
+- For harness consumption: add `--json` to get one schema-version-2 object with `raw` and `provenance` (`provider`, `model`, full `prompt_hash` and `material_hash`). This does not parse or rank findings.
 - Inspect input first: `second-opinion --dry-run --diff HEAD` or `--dry-run path/to/SPEC.md`. The JSON contains the exact engine `prompt` and `material`; no provider is needed or constructed, and provider/model selection is ignored. Keep inputs unchanged before the actual review.
 - Bound reviewer latency: `--timeout 2m`. This covers the provider call including fallbacks, after assembly; omission means unlimited. On macOS/Linux/BSD the invocation process group is terminated; detached children are outside this guarantee, and other platforms currently cancel only the parent.
 - Literal filenames: use `--` before paths beginning with a dash.
@@ -42,17 +42,21 @@ Check it before triaging: if the model matches the material's author, the review
 0 means the requested operation succeeded: a review completed, or preview/help/discovery succeeded. A preview is not a completed review.
 1 means review or output failure (cause on stderr: binary missing, auth, usage limit, nothing to review, timeout, or output write failure).
 2 means the invocation was invalid.
-Check status before parsing JSON; a failed operation does not emit a success object. Help and discovery remain text even with `--json`.
+Check status before parsing JSON; a failed operation does not emit a success object. Help remains text. `--list-providers --json` returns registered names and their `provider_isolation` metadata without checking credentials.
+
+To require a local client material boundary, pass `--require-isolation local-material-only` (MCP: `require_isolation`). Unsupported adapters fail before review without fallback. The HTTP adapter supports it; harness adapters report `unverified`. Successful results carry effective `isolation`. The configured endpoint and transport remain trusted: this is not endpoint context or OS isolation certification. Dry-run records the requirement without claiming it is satisfied.
+
+CLI review/discovery JSON and all MCP tool outcomes use schema version 2. Update v1 consumers before upgrading; v1 negotiation is not provided. Dry-run remains v1 unless isolation is requested.
 
 ## MCP calls
 
 Run `second-opinion mcp serve` as a stdio MCP server. For private HTTP setup and token handling see the repository README; the endpoint is loopback-only and requires a bearer token on every request.
 
 - Discover with `list_providers({})`; registered names are not an availability or authentication guarantee.
-- Call `review` with explicit `provider` and complete `material`. Optional fields are `model`, `prompt` (full replacement), and integer `timeout_ms` (1–300000, default 120000). Environment provider defaults do not apply.
+- Call `review` with explicit `provider` and complete `material`. Optional fields are `model`, `prompt` (full replacement), `require_isolation` (`local-material-only`), and integer `timeout_ms` (1–300000, default 120000). Environment provider defaults do not apply.
 - Assemble the patch/document and deliberately selected supporting context yourself. Paths and URLs remain text; no workspace reads, roots, previous context, stored results, or result retrieval exist.
 - Preserve `raw`, full `provenance`, and the request receipt. Structured content and the single JSON text block contain the same versioned outcome. No parsed finding list is required. Unknown model markers do not prove reviewer independence.
-- Check `isError` and `kind` before triage. A completed empty review is success. Errors expose a safe `code` and execution status: input errors and `busy` are `not_started`; execution failures are `unknown`.
+- Check `isError` and `kind` before triage. A completed empty review is success. Errors expose a safe `code` and execution status: input errors, `busy`, and `isolation_unsupported` are `not_started`; other execution failures are `unknown`.
 - Treat lost/cancelled/timed-out responses as unknown completion. Retrying may repeat paid work; request IDs are not idempotency keys. There is no recovery endpoint or automatic gateway retry.
 - Respect discovery limits: 1 MiB combined UTF-8 material/prompt, 256-byte model, two simultaneous reviews, and bounded transport/output budgets. An overflow fails rather than returning truncated findings. `busy` is not queued work.
 

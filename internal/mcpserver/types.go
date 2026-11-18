@@ -1,6 +1,8 @@
 // Package mcpserver provides the stateless MCP review gateway.
 package mcpserver
 
+import "github.com/danhorst/second-opinion/internal/provider"
+
 const (
 	MaxRequestBytes      = 8 << 20
 	MaxInputBytes        = 1 << 20
@@ -16,11 +18,12 @@ const (
 )
 
 type ReviewInput struct {
-	Provider  string
-	Material  string
-	Model     string
-	Prompt    *string
-	TimeoutMS int
+	RequireIsolation provider.Isolation
+	Provider         string
+	Material         string
+	Model            string
+	Prompt           *string
+	TimeoutMS        int
 }
 
 type ToolError struct {
@@ -43,11 +46,12 @@ type Receipt struct {
 }
 
 type ReviewOutput struct {
-	SchemaVersion int        `json:"schema_version"`
-	Kind          string     `json:"kind"`
-	Raw           string     `json:"raw"`
-	Provenance    Provenance `json:"provenance"`
-	Request       Receipt    `json:"request"`
+	Isolation     provider.Isolation `json:"isolation"`
+	SchemaVersion int                `json:"schema_version"`
+	Kind          string             `json:"kind"`
+	Raw           string             `json:"raw"`
+	Provenance    Provenance         `json:"provenance"`
+	Request       Receipt            `json:"request"`
 }
 
 type ErrorOutput struct {
@@ -57,10 +61,11 @@ type ErrorOutput struct {
 }
 
 type ProvidersOutput struct {
-	SchemaVersion int      `json:"schema_version"`
-	Kind          string   `json:"kind"`
-	Providers     []string `json:"providers"`
-	Limits        Limits   `json:"limits"`
+	ProviderIsolation map[string]provider.Isolation `json:"provider_isolation"`
+	SchemaVersion     int                           `json:"schema_version"`
+	Kind              string                        `json:"kind"`
+	Providers         []string                      `json:"providers"`
+	Limits            Limits                        `json:"limits"`
 }
 
 type Limits struct {

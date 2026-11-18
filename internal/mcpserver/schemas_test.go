@@ -10,16 +10,16 @@ import (
 )
 
 func TestSchemasValidateContract(t *testing.T) {
-	failure := ErrorOutput{1, "error", ToolError{"busy", "Both review slots are occupied.", "not_started"}}
+	failure := ErrorOutput{2, "error", ToolError{"busy", "Both review slots are occupied.", "not_started"}}
 	cases := []struct {
 		name           string
 		schema         map[string]any
 		valid, invalid []any
 	}{
 		{"empty", EmptyInputSchema, []any{map[string]any{}}, []any{nil, map[string]any{"x": 1}}},
-		{"input", ReviewInputSchema, []any{map[string]any{"provider": "codex", "material": "x"}, map[string]any{"provider": "claude", "material": "x", "timeout_ms": 300000}}, []any{map[string]any{"provider": "bad", "material": "x"}, map[string]any{"provider": "codex", "material": "x", "unknown": 1}, map[string]any{"provider": "codex", "material": "x", "prompt": nil}}},
-		{"review", ReviewOutputSchema, []any{ReviewOutput{1, "review", "", Provenance{"codex", "model", provider.HashPrompt("p"), provider.HashMaterial("x")}, Receipt{provider.HashPrompt("x"), 1, 120000}}, failure}, []any{map[string]any{"schema_version": 1, "kind": "review", "raw": "x"}, map[string]any{"schema_version": 2, "kind": "error", "error": failure.Error}}},
-		{"providers", ProvidersOutputSchema, []any{ProvidersOutput{1, "providers", review.Providers(), EffectiveLimits()}, failure}, []any{map[string]any{"schema_version": 1, "kind": "providers", "providers": review.Providers()}}},
+		{"input", ReviewInputSchema, []any{map[string]any{"provider": "openai-compatible", "material": "x", "require_isolation": "local-material-only"}, map[string]any{"provider": "codex", "material": "x"}, map[string]any{"provider": "claude", "material": "x", "timeout_ms": 300000}}, []any{map[string]any{"provider": "codex", "material": "x", "require_isolation": nil}, map[string]any{"provider": "codex", "material": "x", "require_isolation": "unverified"}, map[string]any{"provider": "bad", "material": "x"}, map[string]any{"provider": "codex", "material": "x", "unknown": 1}, map[string]any{"provider": "codex", "material": "x", "prompt": nil}}},
+		{"review", ReviewOutputSchema, []any{ReviewOutput{"unverified", 2, "review", "", Provenance{"codex", "model", provider.HashPrompt("p"), provider.HashMaterial("x")}, Receipt{provider.HashPrompt("x"), 1, 120000}}, ErrorOutput{2, "error", ToolError{"isolation_unsupported", "Unsupported local boundary", "not_started"}}, failure}, []any{map[string]any{"schema_version": 1, "kind": "review", "raw": "x"}, map[string]any{"schema_version": 1, "kind": "error", "error": failure.Error}}},
+		{"providers", ProvidersOutputSchema, []any{ProvidersOutput{review.ProviderIsolation(), 2, "providers", review.Providers(), EffectiveLimits()}, failure}, []any{map[string]any{"schema_version": 1, "kind": "providers", "providers": review.Providers()}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

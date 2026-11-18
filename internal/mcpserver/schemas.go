@@ -21,20 +21,21 @@ func hashSchema() map[string]any {
 // The runtime validator additionally enforces UTF-8 byte budgets and nonblank
 // Unicode text; JSON Schema string lengths count code points, not bytes.
 var ReviewInputSchema = objectSchema(map[string]any{
-	"provider":   map[string]any{"type": "string", "enum": review.Providers(), "description": "Exact registered provider; no inherited default."},
-	"material":   map[string]any{"type": "string", "minLength": 1, "description": "Complete nonblank text to review. Combined with the resolved prompt, at most 1048576 UTF-8 bytes. Paths are text, never opened."},
-	"model":      map[string]any{"type": "string", "minLength": 1, "maxLength": MaxModelBytes, "description": "Nonblank model name, at most 256 UTF-8 bytes."},
-	"prompt":     map[string]any{"type": "string", "minLength": 1, "description": "Nonblank replacement prompt; omitted selects the baked prompt."},
-	"timeout_ms": integerSchema(1, MaxTimeoutMS),
+	"require_isolation": map[string]any{"type": "string", "enum": []string{"local-material-only"}, "description": "Require a client-side material boundary. The configured endpoint and transport remain trusted; this does not certify endpoint context or OS isolation."},
+	"provider":          map[string]any{"type": "string", "enum": review.Providers(), "description": "Exact registered provider; no inherited default."},
+	"material":          map[string]any{"type": "string", "minLength": 1, "description": "Complete nonblank text to review. Combined with the resolved prompt, at most 1048576 UTF-8 bytes. Paths are text, never opened."},
+	"model":             map[string]any{"type": "string", "minLength": 1, "maxLength": MaxModelBytes, "description": "Nonblank model name, at most 256 UTF-8 bytes."},
+	"prompt":            map[string]any{"type": "string", "minLength": 1, "description": "Nonblank replacement prompt; omitted selects the baked prompt."},
+	"timeout_ms":        integerSchema(1, MaxTimeoutMS),
 }, "provider", "material")
 
 var EmptyInputSchema = objectSchema(map[string]any{})
 
 func errorSchema() map[string]any {
 	return objectSchema(map[string]any{
-		"schema_version": constantSchema(1), "kind": constantSchema("error"),
+		"schema_version": constantSchema(2), "kind": constantSchema("error"),
 		"error": objectSchema(map[string]any{
-			"code":      map[string]any{"type": "string", "enum": []string{"invalid_input", "input_too_large", "busy", "unavailable", "auth", "timeout", "cancelled", "output_too_large", "provider_failed"}},
+			"code":      map[string]any{"type": "string", "enum": []string{"invalid_input", "input_too_large", "busy", "unavailable", "auth", "timeout", "cancelled", "output_too_large", "provider_failed", "isolation_unsupported"}},
 			"message":   textSchema(),
 			"execution": map[string]any{"type": "string", "enum": []string{"not_started", "unknown"}},
 		}, "code", "message", "execution"),
@@ -43,10 +44,11 @@ func errorSchema() map[string]any {
 
 var ReviewOutputSchema = map[string]any{"type": "object", "oneOf": []any{
 	objectSchema(map[string]any{
-		"schema_version": constantSchema(1), "kind": constantSchema("review"), "raw": map[string]any{"type": "string"},
+		"schema_version": constantSchema(2), "kind": constantSchema("review"), "raw": map[string]any{"type": "string"},
+		"isolation":  isolationSchema(),
 		"provenance": objectSchema(map[string]any{"provider": textSchema(), "model": textSchema(), "prompt_hash": hashSchema(), "material_hash": hashSchema()}, "provider", "model", "prompt_hash", "material_hash"),
 		"request":    objectSchema(map[string]any{"material_hash": hashSchema(), "material_bytes": integerSchema(1, MaxInputBytes), "timeout_ms": integerSchema(1, MaxTimeoutMS)}, "material_hash", "material_bytes", "timeout_ms"),
-	}, "schema_version", "kind", "raw", "provenance", "request"),
+	}, "schema_version", "kind", "raw", "provenance", "request", "isolation"),
 	errorSchema(),
 }}
 
@@ -64,9 +66,22 @@ func limitsSchema() map[string]any {
 
 var ProvidersOutputSchema = map[string]any{"type": "object", "oneOf": []any{
 	objectSchema(map[string]any{
-		"schema_version": constantSchema(1), "kind": constantSchema("providers"),
-		"providers": map[string]any{"type": "array", "items": textSchema(), "uniqueItems": true},
-		"limits":    limitsSchema(),
-	}, "schema_version", "kind", "providers", "limits"),
+		"schema_version": constantSchema(2), "kind": constantSchema("providers"),
+		"providers":          map[string]any{"type": "array", "items": textSchema(), "uniqueItems": true},
+		"limits":             limitsSchema(),
+		"provider_isolation": providerIsolationSchema(),
+	}, "schema_version", "kind", "providers", "limits", "provider_isolation"),
 	errorSchema(),
 }}
+
+func isolationSchema() map[string]any {
+	return map[string]any{"type": "string", "enum": []string{"unverified", "local-material-only"}, "description": "Local client boundary only; endpoint and transport remain trusted. Unverified does not certify a read boundary."}
+}
+
+func providerIsolationSchema() map[string]any {
+	properties := make(map[string]any)
+	for _, name := range review.Providers() {
+		properties[name] = isolationSchema()
+	}
+	return objectSchema(properties, review.Providers()...)
+}

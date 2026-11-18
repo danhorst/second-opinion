@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Added
+
+- Require `local-material-only` isolation through CLI or MCP; unsupported providers fail before review without fallback.
+- Report effective local isolation in review results and provider discovery, including `--list-providers --json`.
+
+### Changed
+
+- CLI review/discovery JSON and MCP tool outcomes use schema version 2. Update v1 consumers before upgrading; v1 response negotiation is not provided. Dry-run remains v1 unless isolation is requested.
+
+### Fixed
+
+- Reject ambiguous duplicate JSON response keys and preserve unknown execution status for isolation errors returned after provider invocation.
+- OpenAI-compatible reviews reject HTTP redirects and tool/function-call responses instead of following or accepting them as findings.
+
+### Validation limits
+
+- The local material boundary covers client mechanics only. Endpoints and HTTP transports remain trusted; CLI harnesses report `unverified`.
+- Policy, local HTTP, CLI/MCP, and schema tests passed. Live endpoint conformance remains unverified without configured credentials/model.
+
 ## [0.3.0] - 2026-11-16
 
 ### Added
